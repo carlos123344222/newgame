@@ -1451,12 +1451,32 @@ function actions.GoHome(plr)
 	end
 end
 
--- Atajos del menú: a la Ruleta (delante del mostrador, mirándolo) o a la explanada de los lobbies del Tower Defense
+-- Atajos del menú: a la Ruleta (delante del mostrador, mirándolo) o a la explanada de los lobbies del Tower Defense.
+-- El cliente oscurece la pantalla antes de pedirlo; aquí sale una nube de humo donde estabas y otra donde llegas.
 local travelAt = {}
-function actions.GoTo(plr, where)
-	local hum = plr.Character and plr.Character:FindFirstChildOfClass("Humanoid")
-	if not (state[plr] and hum and hum.Health > 0) or plr:GetAttribute("Mode") or os.clock() < (travelAt[plr] or 0) then
+local function poofAt(pos)
+	local poof = Assets:FindFirstChild("Poof")
+	if not poof then
 		return
+	end
+	local a = Instance.new("Attachment")
+	a.WorldPosition = pos
+	a.Parent = workspace.Terrain
+	local p = poof:Clone()
+	p.Parent = a
+	p:Emit(30)
+	soundAt("Poof", pos)
+	Debris:AddItem(a, 4)
+end
+function actions.GoTo(plr, where)
+	local char = plr.Character
+	local hum = char and char:FindFirstChildOfClass("Humanoid")
+	local root = char and char:FindFirstChild("HumanoidRootPart")
+	if not (state[plr] and hum and root and hum.Health > 0) or os.clock() < (travelAt[plr] or 0) then
+		return
+	end
+	if plr:GetAttribute("Mode") then
+		return Remote:FireClient(plr, "Info", "Leave first, then teleport")
 	end
 	local to
 	if where == "wheel" then
@@ -1469,11 +1489,15 @@ function actions.GoTo(plr, where)
 	elseif where == "td" then
 		to = require(SSS.TDMaps).BACK
 	end
-	if to then
-		travelAt[plr] = os.clock() + 2
-		hum.Sit = false
-		plr.Character:PivotTo(to)
+	if not to then
+		return
 	end
+	travelAt[plr] = os.clock() + 2
+	poofAt(root.Position)
+	hum.Sit = false
+	char:PivotTo(to)
+	root.AssemblyLinearVelocity = Vector3.zero
+	poofAt(to.Position)
 end
 Players.PlayerRemoving:Connect(function(plr)
 	travelAt[plr] = nil

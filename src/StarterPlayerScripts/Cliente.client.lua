@@ -111,14 +111,41 @@ UI.homeButton.Activated:Connect(function()
 	end
 	Remote:FireServer("GoHome")
 end)
--- atajos: teletransporte a la Ruleta y a los lobbies del Tower Defense
-for _, b in {{8, "wheel", "Wheel", Color3.fromRGB(255, 80, 170), "wheel"}, {10, "skull", "Tower Def.", Color3.fromRGB(226, 60, 84), "td"}} do
-	UI.menuButton(b[1], b[2], b[3], b[4]).Activated:Connect(function()
+-- atajos: teletransporte a la Ruleta y a los lobbies del Tower Defense. La pantalla se oscurece, el servidor te
+-- mueve (con humo donde estabas y donde llegas) y se aclara con el nombre del sitio.
+local TRAVEL = {
+	{order = 8, icon = "wheel", text = "Wheel", color = Color3.fromRGB(255, 80, 170), where = "wheel", arrive = "Wheel of Fright"},
+	{order = 10, icon = "skull", text = "Defense", color = Color3.fromRGB(226, 60, 84), where = "td", arrive = "Tower Defense"},
+}
+local traveling = false
+for _, d in TRAVEL do
+	UI.menuButton(d.order, d.icon, d.text, d.color).Activated:Connect(function()
+		if traveling then
+			return
+		end
 		if player:GetAttribute("Mode") then
 			return UI.toast("Leave first, then teleport", UI.RED)
 		end
+		local root = player.Character and player.Character:FindFirstChild("HumanoidRootPart")
+		if not root then
+			return
+		end
+		traveling = true
 		UI.sound("Portal")
-		Remote:FireServer("GoTo", b[5])
+		UI.fadeOut(0.22).Completed:Wait()
+		local from = root.Position
+		Remote:FireServer("GoTo", d.where)
+		local t0 = os.clock()
+		while os.clock() - t0 < 1 and root.Parent and (root.Position - from).Magnitude < 5 do
+			task.wait()
+		end
+		local moved = root.Parent and (root.Position - from).Magnitude >= 5
+		task.wait(0.12) -- (un instante para que cargue lo de alrededor)
+		UI.fadeIn(0.45)
+		if moved then
+			UI.toast(d.arrive, d.color, d.icon)
+		end
+		traveling = false
 	end)
 end
 UI.helpButton.Activated:Connect(function()
