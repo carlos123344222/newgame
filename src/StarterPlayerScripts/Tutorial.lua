@@ -522,8 +522,17 @@ local function check()
 	end
 end
 
--- Empieza (o retoma) el tutorial. Se llama justo al pulsar PLAY, ya delante de tu casa.
-function Tutorial.start()
+-- Empieza (o retoma) el tutorial. Se llama justo al pulsar PLAY, ya delante de tu casa, o al llegar de un viaje del
+-- Tower Defense (sin portada). inMatch: llegas a una partida; ahí no hay calle ni alcalde.
+function Tutorial.start(inMatch)
+	if inMatch then
+		return
+	end
+	-- (al llegar de un viaje no hay portada: los datos y la parcela pueden tardar un poco más que este script)
+	local t0 = os.clock()
+	while not player:GetAttribute("Plot") and os.clock() - t0 < 20 do
+		task.wait(0.25)
+	end
 	step = player:GetAttribute("Tut") or 0
 	placeNpc()
 	player:GetAttributeChangedSignal("Plot"):Connect(placeNpc)

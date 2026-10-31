@@ -496,7 +496,7 @@ applyMode()
 local tp = game:GetService("TeleportService"):GetLocalPlayerTeleportData()
 if typeof(tp) == "table" and (tp.td or tp.fromMatch) then
 	UI.gui.Enabled = true
-	Tutorial.start()
+	task.spawn(Tutorial.start, tp.td ~= nil)
 else
 	UI.gui.Enabled = false
 	Portada.show(function()

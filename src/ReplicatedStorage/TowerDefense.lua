@@ -130,7 +130,7 @@ TD.DIFF_ORDER = {"Easy", "Normal", "Hard", "Insane", "Nightmare", "Apocalypse"}
 TD.DIFFS = {
 	Easy = {hp = 0.35, speed = 0.9, cash = 1.3, coins = 0.75, color = Color3.fromRGB(96, 230, 120), desc = "Much weaker, slower hunters · +30% cash · x0.75 coins"},
 	Normal = {hp = 0.7, speed = 1, cash = 1, coins = 1, color = Color3.fromRGB(70, 176, 255), desc = "The intended challenge · x1 coins"},
-	Hard = {hp = 1, speed = 1.05, cash = 0.95, coins = 1.4, color = Color3.fromRGB(255, 200, 50), desc = "Tougher, faster hunters · x1.4 coins"},
+	Hard = {hp = 1.12, speed = 1.05, cash = 0.95, coins = 1.4, color = Color3.fromRGB(255, 200, 50), desc = "Tougher, faster hunters · x1.4 coins"},
 	Insane = {hp = 1.35, speed = 1.1, cash = 0.9, coins = 2, color = Color3.fromRGB(255, 120, 40), desc = "Relentless hunters · x2 coins"},
 	Nightmare = {hp = 1.55, speed = 1.15, cash = 0.85, coins = 2.8, color = Color3.fromRGB(180, 70, 255), desc = "Only for the bravest · x2.8 coins"},
 	Apocalypse = {hp = 1.85, speed = 1.22, cash = 0.8, coins = 4, color = Color3.fromRGB(235, 30, 50), desc = "The end of all haunts · x4 coins"},
@@ -215,7 +215,7 @@ TD.Troops = {
 	Armario = {cost = 200, dmg = 16, cd = 1.2, range = 15, kind = "single", sound = "Slam", info = "Bursts open on one ghost hunter at a time."},
 	Luz = {cost = 150, dmg = 5, cd = 1, range = 12, kind = "aoe", slow = 0.35, slowTime = 1.2, detect = true, sound = "Flicker", info = "Flickers over everyone in range: -35% speed. Its light reveals hidden hunters."},
 	Gramofono = {cost = 300, dmg = 12, cd = 1.1, range = 13, kind = "aoe", sound = "MusicBox", info = "Its creepy lullaby scares everyone in range."},
-	Fantasma = {cost = 350, dmg = 11, cd = 0.5, range = 15, kind = "single", sound = "Wail", info = "Fast and relentless: two scares per second."},
+	Fantasma = {cost = 350, dmg = 11, cd = 0.6, range = 15, kind = "single", sound = "Wail", info = "Fast and relentless: almost two scares per second."},
 	Muneca = {cost = 500, dmg = 60, cd = 2.5, range = 24, kind = "single", target = "Strong", sound = "DollScream", info = "Long range. Screams at the bravest hunter."},
 	Sombra = {cost = 450, dmg = 12, cd = 1.2, range = 14, kind = "aoe", terrify = 0.35, terrifyTime = 2.5, detect = true, sound = "Deep", info = "Terrifies everyone in range: +35% fear taken. Sees hidden hunters."},
 	Arana = {cost = 550, dmg = 30, cd = 1.6, range = 14, kind = "single", stun = 0.9, sound = "Hop", info = "Drops on a hunter and freezes them in place."},
@@ -225,7 +225,7 @@ TD.Troops = {
 	Zombie = {cost = 1500, dmg = 130, cd = 1.8, range = 15, kind = "single", stun = 0.4, sound = "ZombieGroan", info = "Huge bites that stun the target."},
 	Parca = {cost = 2200, dmg = 110, cd = 1.4, range = 24, kind = "single", execute = 0.12, detect = true, sound = "Whoosh", info = "12% chance to scare a hunter away instantly (not bosses). Sees hidden hunters."},
 	---------- Nuevas ----------
-	Murcielagos = {cost = 275, dmg = 6, cd = 0.32, range = 13, kind = "single", fx = "bats", idle = "orbit", sound = "Swoosh", info = "A swarm of bats that nibbles hunters: super fast attacks."},
+	Murcielagos = {cost = 275, dmg = 6, cd = 0.38, range = 13, kind = "single", fx = "bats", idle = "orbit", sound = "Swoosh", info = "A swarm of bats that nibbles hunters: super fast attacks."},
 	Calabaza = {cost = 350, dmg = 22, cd = 2, range = 19, kind = "splash", splash = 6, fx = "lob", color = Color3.fromRGB(255, 140, 30), sound = "Boom", info = "Lobs exploding jack-o'-lanterns over walls: splash fear."},
 	Cuervo = {cost = 325, dmg = 26, cd = 2.2, range = 30, kind = "single", detect = true, fx = "bolt", idle = "sway", sound = "Whoosh", info = "Huge range. Its sharp eyes spot hidden hunters."},
 	Velas = {cost = 300, dmg = 4, cd = 1.4, range = 11, kind = "aoe", burn = {dps = 4, time = 3}, fx = "fire", color = Color3.fromRGB(255, 170, 60), sound = "Flicker", info = "Cursed fire for everyone in range: burns over time."},
@@ -599,14 +599,15 @@ function TD.waveCoins(w) -- monedas del juego (las de comprar sustos) al superar
 end
 
 ---------- Mejoras ----------
--- Mejorar siempre rinde más que poner otra tropa igual: cada nivel da más miedo por segundo por moneda que la tropa
--- nueva (x1.80, x2.96, x4.71 de miedo por segundo por 1.6, 2.6 y 4.1 veces su precio), y además alcance y área.
+-- Mejorar rinde más o menos lo mismo por moneda que poner otra tropa igual (x1.80, x2.96, x4.71 de miedo por segundo
+-- por 1.85, 3.25 y 5.45 veces su precio), pero además da alcance y área, y no gasta hueco (hay un límite de cada tropa).
+-- Antes costaba mucho menos (1.6, 2.6 y 4.1 veces) y con las tropas del principio mejoradas se ganaba en Hard.
 -- (y lo demás crece con ellas: fuego, rebotes, mejora del Espejo, lo que paga el Pozo)
 TD.LEVEL_DMG = {1, 1.55, 2.25, 3.2}
 TD.LEVEL_CD = {1, 0.86, 0.76, 0.68}
 TD.LEVEL_RANGE = {1, 1.1, 1.2, 1.32}
 TD.LEVEL_CHAIN = {0, 1, 1, 2} -- rebotes extra
-TD.UPGRADE = {0.6, 1, 1.5} -- precio de pasar de nivel n a n + 1 (por el de la tropa)
+TD.UPGRADE = {0.85, 1.4, 2.2} -- precio de pasar de nivel n a n + 1 (por el de la tropa)
 TD.INCOME = {1, 1.9, 3.1, 4.8}
 -- mastery: el nivel de la tropa (Config.levelOf de su experiencia): cada nivel, +Config.LEVEL_FEAR de miedo (y de fuego
 -- y de lo que paga el Pozo)
@@ -643,7 +644,7 @@ function TD.stats(t, level, mastery)
 	return s
 end
 function TD.upgradeCost(t, level) -- de level a level + 1
-	return math.floor(TD.Troops[t].cost * (TD.UPGRADE[level] or 1.5) / 5 + 0.5) * 5
+	return math.floor(TD.Troops[t].cost * (TD.UPGRADE[level] or 2.2) / 5 + 0.5) * 5
 end
 function TD.sellValue(spent)
 	return math.floor(spent * TD.SELL)
