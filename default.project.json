@@ -210,9 +210,6 @@
       "MapaScarecrowFields": {
         "$path": "src/ServerStorage/MapaScarecrowFields.lua"
       },
-      "ImportadorBlenderTD": {
-        "$path": "src/ServerStorage/ImportadorBlenderTD.lua"
-      },
       "MapasNuevosLib": {
         "$path": "src/ServerStorage/MapasNuevosLib.lua"
       },
@@ -257,9 +254,6 @@
       },
       "MapaVoidcoreRift": {
         "$path": "src/ServerStorage/MapaVoidcoreRift.lua"
-      },
-      "_TowerGearBuilder": {
-        "$path": "src/ServerStorage/_TowerGearBuilder.lua"
       },
       "SkinsBuilder": {
         "$path": "src/ServerStorage/SkinsBuilder.lua"

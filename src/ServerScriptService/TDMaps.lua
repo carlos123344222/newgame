@@ -3,7 +3,7 @@
 -- · Servidor público: los lobbies. Al empezar, TowerDefenseLobbies manda al grupo a un servidor reservado de este
 --   mismo lugar con los datos del viaje {td = {map, diff, waves, from}}.
 -- · Servidor de partida (reservado): carga solo ese mapa, mete en él a cada jugador que llega (y al reaparecer si
---   muere) y, al salir o acabar la partida, le devuelve a su servidor de lobbies (Maps.travelHome).
+--   muere) y, al salir o acabar la partida, le devuelve a un servidor de lobbies (Maps.travelHome).
 -- · En Studio no hay viajes: el lobby carga el mapa aquí mismo. El atributo de Workspace "TestPartida"
 --   ("Mapa|Dificultad|Oleadas") simula un servidor de partida.
 -- En un mapa el jugador está en el modo "td" (atributo Mode: Juego no le deja empezar visitas) y su atributo TDMap
@@ -217,7 +217,7 @@ end
 local settings -- servidor de partida: los ajustes de la partida (del primero que llega)
 local homeTries = {} -- [jugador] = intentos de volver a los lobbies
 
--- Servidor de partida: de vuelta a los lobbies (a su mismo servidor si se puede; si no, a cualquiera)
+-- Servidor de partida: de vuelta a los lobbies (a cualquier servidor público)
 function Maps.travelHome(plr)
 	if not plr.Parent then
 		return
@@ -237,10 +237,9 @@ function Maps.travelHome(plr)
 		Maps.saveFor(plr, true)
 		Maps.announceTravel(plr, "lobby")
 	end
+	-- (a un servidor público cualquiera, no al de origen: si se quedó vacío al salir el grupo, Roblox ya lo cerró y
+	-- un viaje con ServerInstanceId a un servidor cerrado se queda colgado en la pantalla de viaje)
 	local opts = Instance.new("TeleportOptions")
-	if settings and settings.from and tries == 1 then
-		opts.ServerInstanceId = settings.from
-	end
 	opts:SetTeleportData({fromMatch = true})
 	local ok, err = pcall(TeleportService.TeleportAsync, TeleportService, game.PlaceId, {plr}, opts)
 	if not ok then
