@@ -862,15 +862,17 @@ end
 -- Las casas no crecen: se compra otra casa (más grande) y sustituye a la tuya en la parcela. Las que ya tienes se
 -- pueden volver a poner gratis. template: modelo en ServerStorage. rooms: salas de dentro (límite de sustos = rooms ×
 -- SCARES_PER_ROOM). La primera es la que tiene todo el mundo al empezar.
+-- fear: cuanto mejor la casa, más valientes llegan los visitantes (el miedo que les das × fear: 0.7 = un 30% menos).
+-- coins: y para compensar, sueltan más monedas (× coins). Sin ellos, 1.
 Config.Houses = {
-	{id = "Cottage", name = "Haunted Cottage", template = "CasaPrincipal", rooms = 1, price = 0,
+	{id = "Cottage", name = "Haunted Cottage", template = "CasaPrincipal", rooms = 1, price = 0, fear = 1, coins = 1,
 		desc = "Your first haunted house. One room, room for " .. Config.SCARES_PER_ROOM .. " scares."},
-	{id = "Long", name = "Long Haunted House", template = "CasaLarga", rooms = 2, price = 12000,
+	{id = "Long", name = "Long Haunted House", template = "CasaLarga", rooms = 2, price = 12000, fear = 0.85, coins = 1.2,
 		desc = "A long, creaky house with two rooms: room for " .. 2 * Config.SCARES_PER_ROOM .. " scares."},
-	{id = "Manor", name = "Haunted Manor", template = "CasaMansion", rooms = 3, price = 50000,
+	{id = "Manor", name = "Haunted Manor", template = "CasaMansion", rooms = 3, price = 50000, fear = 0.7, coins = 1.45,
 		desc = "A long manor with a haunted belfry on the roof: three rooms, room for " .. 3 * Config.SCARES_PER_ROOM .. " scares."},
 	-- más ancha y alta por dentro (width/height) y con más espacios para sustos (spaces) que las demás
-	{id = "Grand", name = "Grand Haunted Manor", template = "CasaGran", rooms = 3, price = 150000, width = 36, height = 15, spaces = 20,
+	{id = "Grand", name = "Grand Haunted Manor", template = "CasaGran", rooms = 3, price = 150000, fear = 0.55, coins = 1.75, width = 36, height = 15, spaces = 20,
 		desc = "A wide, tall Victorian manor with a corner tower, glowing dormers and a belfry: three big rooms, room for 20 scares."},
 }
 -- Medidas de dentro de una casa (según su plantilla): ancho, alto y espacios para sustos
@@ -896,6 +898,15 @@ function Config.house(id)
 		end
 	end
 	return nil
+end
+-- Lo valientes que llegan los visitantes a la casa de ese jugador (según en cuál vive) y cuántas monedas más sueltan
+function Config.houseFear(plr)
+	local def = plr and Config.house(plr:GetAttribute("Home"))
+	return def and def.fear or 1
+end
+function Config.houseCoins(plr)
+	local def = plr and Config.house(plr:GetAttribute("Home"))
+	return def and def.coins or 1
 end
 
 ---------- Habitaciones ----------

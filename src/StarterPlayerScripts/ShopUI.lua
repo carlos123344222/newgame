@@ -1007,6 +1007,9 @@ return function(UI)
 			text({Position = UDim2.fromOffset(14, 10), Size = UDim2.fromOffset(270, 28), TextSize = 22, TextXAlignment = LEFT, Text = def.name, TextScaled = true, ZIndex = 3}, b, 2.2)
 			local spaces = select(3, Config.houseDims(def.template, def.rooms))
 			text({Position = UDim2.fromOffset(15, 38), Size = UDim2.fromOffset(200, 20), Font = C.BOLD, TextSize = 17, TextXAlignment = LEFT, Text = ("%d %s · %d spaces"):format(def.rooms, def.rooms == 1 and "room" or "rooms", spaces), TextColor3 = GREY_TEXT, ZIndex = 3}, b, 1.5)
+			if (def.fear or 1) < 1 then
+				text({Position = UDim2.fromOffset(15, 60), Size = UDim2.fromOffset(200, 20), Font = C.BOLD, TextSize = 16, TextXAlignment = LEFT, Text = ("Braver visitors · x%s coins"):format(def.coins or 1), TextColor3 = Color3.fromRGB(255, 120, 110), ZIndex = 3}, b, 1.5)
+			end
 			local btn = C.button(b, "", "green", {Position = UDim2.new(0, 12, 1, -56), Size = UDim2.fromOffset(170, 44), TextSize = 21, ZIndex = 4}, "coin")
 			local function act()
 				local home = player:GetAttribute("Home") or Config.Houses[1].id

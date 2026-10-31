@@ -1132,8 +1132,9 @@ local function spawnBot(h)
 	-- los raros (y los de otra materia) van despacio: da tiempo a volver a casa a verlos
 	local pace = Config.visitorSpeed(rarity, variant)
 	hum.WalkSpeed = math.random(9, 12) * (vdef.speed or 1) * pace
-	-- cuanto más nivel tiene el dueño, menos se asustan sus visitantes, pero más monedas sueltan
+	-- cuanto más nivel tiene el dueño (y mejor es su casa), menos se asustan sus visitantes, pero más monedas sueltan
 	local ownerLv = Config.playerLevel(h.owner)
+	local homeFear, homeCoins = Config.houseFear(h.owner), Config.houseCoins(h.owner)
 	bot:PivotTo(h.cf * CFrame.new(math.random(-1, 1), 3 - Config.FLOOR_Y, 21))
 	bot.Parent = h.model
 	setGroup(bot, "Bots") -- atraviesan el portal (los jugadores no: lo cruzan con la animación)
@@ -1142,9 +1143,9 @@ local function spawnBot(h)
 	h.bot = bot
 	local v = {
 		key = bot, bot = bot, hum = hum, root = bot.HumanoidRootPart, house = h, bar = bar, speed = hum.WalkSpeed,
-		fear = 0, calmAt = 0, courage = (0.75 + math.random() * 0.6) * rarity.courage * (vdef.courage or 1) * Config.levelFear(ownerLv), combo = 0, lastScare = -math.huge,
+		fear = 0, calmAt = 0, courage = (0.75 + math.random() * 0.6) * rarity.courage * (vdef.courage or 1) * Config.levelFear(ownerLv) * homeFear, combo = 0, lastScare = -math.huge,
 		voice = (0.9 + math.random() * 0.35) / (vdef.scale or 1), -- cada visitante grita con su propio tono
-		mult = (vdef.mult or 1) * Config.levelCoins(ownerLv), vdef = vdef, variant = variant and variant.id,
+		mult = (vdef.mult or 1) * Config.levelCoins(ownerLv) * homeCoins, vdef = vdef, variant = variant and variant.id,
 	}
 	visits[bot] = v
 	task.spawn(function()
