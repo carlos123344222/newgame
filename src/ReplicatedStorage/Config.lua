@@ -865,12 +865,12 @@ end
 Config.Houses = {
 	{id = "Cottage", name = "Haunted Cottage", template = "CasaPrincipal", rooms = 1, price = 0,
 		desc = "Your first haunted house. One room, room for " .. Config.SCARES_PER_ROOM .. " scares."},
-	{id = "Long", name = "Long Haunted House", template = "CasaLarga", rooms = 2, price = 6000,
+	{id = "Long", name = "Long Haunted House", template = "CasaLarga", rooms = 2, price = 12000,
 		desc = "A long, creaky house with two rooms: room for " .. 2 * Config.SCARES_PER_ROOM .. " scares."},
-	{id = "Manor", name = "Haunted Manor", template = "CasaMansion", rooms = 3, price = 25000,
+	{id = "Manor", name = "Haunted Manor", template = "CasaMansion", rooms = 3, price = 50000,
 		desc = "A long manor with a haunted belfry on the roof: three rooms, room for " .. 3 * Config.SCARES_PER_ROOM .. " scares."},
 	-- más ancha y alta por dentro (width/height) y con más espacios para sustos (spaces) que las demás
-	{id = "Grand", name = "Grand Haunted Manor", template = "CasaGran", rooms = 3, price = 75000, width = 36, height = 15, spaces = 20,
+	{id = "Grand", name = "Grand Haunted Manor", template = "CasaGran", rooms = 3, price = 150000, width = 36, height = 15, spaces = 20,
 		desc = "A wide, tall Victorian manor with a corner tower, glowing dormers and a belfry: three big rooms, room for 20 scares."},
 }
 -- Medidas de dentro de una casa (según su plantilla): ancho, alto y espacios para sustos
