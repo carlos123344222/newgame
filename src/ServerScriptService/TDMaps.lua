@@ -25,9 +25,9 @@ local Storage = ServerStorage:WaitForChild("MapasTD")
 local Maps = {}
 Maps.list = {}
 
--- ¿Es este el servidor de una partida? (reservado: sin dueño)
+-- ¿Es este el servidor de una partida? (lo apuntó el servidor de lobbies al reservarlo: ServidorPartida)
 local TEST = RunService:IsStudio() and workspace:GetAttribute("TestPartida")
-Maps.isMatchServer = TEST ~= nil or (game.PrivateServerId ~= "" and game.PrivateServerOwnerId == 0)
+Maps.isMatchServer = require(script.Parent.ServidorPartida).isMatchServer
 
 -- Guarda (y congela) o descongela los datos de un jugador antes de viajar (Juego). Sin Juego, no hace nada.
 function Maps.saveFor(plr, freeze)

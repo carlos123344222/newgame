@@ -193,6 +193,9 @@
       },
       "Rankings": {
         "$path": "src/ServerScriptService/Rankings.server.lua"
+      },
+      "ServidorPartida": {
+        "$path": "src/ServerScriptService/ServidorPartida.lua"
       }
     },
     "ServerStorage": {

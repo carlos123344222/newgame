@@ -33,8 +33,8 @@ end
 -- partidas reales. Para probar el guardado en Studio, atributo StudioSave = true en Workspace.
 local READ_ONLY = RunService:IsStudio() and not workspace:GetAttribute("StudioSave")
 local LOCK_TRIES = 6 -- intentos de cargar mientras otro servidor aún tiene al jugador (el último se lo queda igualmente)
--- Servidor de una partida del Tower Defense (reservado, sin dueño: TDMaps): ahí tu casa no recibe visitantes
-local MATCH_SERVER = (RunService:IsStudio() and workspace:GetAttribute("TestPartida") ~= nil) or (game.PrivateServerId ~= "" and game.PrivateServerOwnerId == 0)
+-- Servidor de una partida del Tower Defense (ServidorPartida): ahí tu casa no recibe visitantes
+local MATCH_SERVER = require(SSS.ServidorPartida).isMatchServer
 -- Modos en los que el dueño está en el Tower Defense: su casa se queda cerrada
 local AWAY = {lobby = true, travel = true, td = true}
 

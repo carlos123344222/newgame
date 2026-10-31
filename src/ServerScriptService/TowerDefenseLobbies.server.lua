@@ -15,6 +15,7 @@ local TeleportService = game:GetService("TeleportService")
 local Config = require(RS.Config)
 local TD = require(RS.TowerDefense)
 local TDMaps = require(script.Parent.TDMaps)
+local ServidorPartida = require(script.Parent.ServidorPartida)
 local Remote = RS.Remote
 local LobbyRemote = RS.LobbyRemote
 local td = workspace:WaitForChild("Mapa"):WaitForChild("TowerDefense")
@@ -254,7 +255,9 @@ local function teleport(group, settings)
 			return
 		end
 		ok, err = pcall(function()
-			local code = TeleportService:ReserveServer(game.PlaceId)
+			local code, serverId = TeleportService:ReserveServer(game.PlaceId)
+			-- (sin apuntarlo, al llegar no sabría que es una partida)
+			assert(ServidorPartida.register(serverId), "no se pudo apuntar la partida")
 			local opts = Instance.new("TeleportOptions")
 			opts.ReservedServerAccessCode = code
 			opts:SetTeleportData({td = {map = settings.map, diff = settings.diff, waves = settings.waves, host = settings.host, from = game.JobId}})
