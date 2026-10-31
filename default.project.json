@@ -1,0 +1,278 @@
+{
+  "name": "TuCasaEncantada",
+  "tree": {
+    "$className": "DataModel",
+    "$ignoreUnknownInstances": true,
+    "ReplicatedFirst": {
+      "$className": "ReplicatedFirst",
+      "$ignoreUnknownInstances": true,
+      "LlegadaTD": {
+        "$path": "src/ReplicatedFirst/LlegadaTD.client.lua"
+      }
+    },
+    "StarterPlayer": {
+      "$className": "StarterPlayer",
+      "$ignoreUnknownInstances": true,
+      "StarterPlayerScripts": {
+        "$className": "StarterPlayerScripts",
+        "$ignoreUnknownInstances": true,
+        "Cliente": {
+          "$path": "src/StarterPlayerScripts/Cliente.client.lua"
+        },
+        "LobbyUI": {
+          "$path": "src/StarterPlayerScripts/LobbyUI.client.lua"
+        },
+        "ZombieHollowFX": {
+          "$path": "src/StarterPlayerScripts/ZombieHollowFX.client.lua"
+        },
+        "TowerDefenseUI": {
+          "$path": "src/StarterPlayerScripts/TowerDefenseUI.client.lua"
+        },
+        "ScareIdle": {
+          "$path": "src/StarterPlayerScripts/ScareIdle.client.lua"
+        },
+        "CarnivalFX": {
+          "$path": "src/StarterPlayerScripts/CarnivalFX.client.lua"
+        },
+        "Tiendas": {
+          "$path": "src/StarterPlayerScripts/Tiendas.client.lua"
+        },
+        "TiendasFX": {
+          "$path": "src/StarterPlayerScripts/TiendasFX.client.lua"
+        },
+        "Prompts": {
+          "$path": "src/StarterPlayerScripts/Prompts.client.lua"
+        },
+        "VisitorBook": {
+          "$path": "src/StarterPlayerScripts/VisitorBook.client.lua"
+        },
+        "TDTroops": {
+          "$path": "src/StarterPlayerScripts/TDTroops.client.lua"
+        },
+        "NivelJugador": {
+          "$path": "src/StarterPlayerScripts/NivelJugador.client.lua"
+        },
+        "TDPathArrows": {
+          "$path": "src/StarterPlayerScripts/TDPathArrows.client.lua"
+        },
+        "MapFX": {
+          "$path": "src/StarterPlayerScripts/MapFX.client.lua"
+        },
+        "Eventos": {
+          "$path": "src/StarterPlayerScripts/Eventos.client.lua"
+        },
+        "TagFX": {
+          "$path": "src/StarterPlayerScripts/TagFX.client.lua"
+        },
+        "MisionesUI": {
+          "$path": "src/StarterPlayerScripts/MisionesUI.client.lua"
+        },
+        "BrujaFX": {
+          "$path": "src/StarterPlayerScripts/BrujaFX.client.lua"
+        },
+        "Trailer": {
+          "$path": "src/StarterPlayerScripts/Trailer.client.lua"
+        },
+        "UI": {
+          "$path": "src/StarterPlayerScripts/UI.lua"
+        },
+        "Build": {
+          "$path": "src/StarterPlayerScripts/Build.lua"
+        },
+        "Visit": {
+          "$path": "src/StarterPlayerScripts/Visit.lua"
+        },
+        "Calabaza": {
+          "$path": "src/StarterPlayerScripts/Calabaza.lua"
+        },
+        "Dialogo": {
+          "$path": "src/StarterPlayerScripts/Dialogo.lua"
+        },
+        "Portada": {
+          "$path": "src/StarterPlayerScripts/Portada.lua"
+        },
+        "Tutorial": {
+          "$path": "src/StarterPlayerScripts/Tutorial.lua"
+        },
+        "Portales": {
+          "$path": "src/StarterPlayerScripts/Portales.lua"
+        },
+        "NPCAnim": {
+          "$path": "src/StarterPlayerScripts/NPCAnim.lua"
+        },
+        "Monedas": {
+          "$path": "src/StarterPlayerScripts/Monedas.lua"
+        },
+        "Llamas": {
+          "$path": "src/StarterPlayerScripts/Llamas.lua"
+        },
+        "TDKit": {
+          "$path": "src/StarterPlayerScripts/TDKit.lua"
+        },
+        "Catalog": {
+          "$path": "src/StarterPlayerScripts/Catalog.lua"
+        },
+        "ShopUI": {
+          "$path": "src/StarterPlayerScripts/ShopUI.lua"
+        },
+        "ScareStoreUI": {
+          "$path": "src/StarterPlayerScripts/ScareStoreUI.lua"
+        },
+        "Musica": {
+          "$path": "src/StarterPlayerScripts/Musica.lua"
+        },
+        "FusionUI": {
+          "$path": "src/StarterPlayerScripts/FusionUI.lua"
+        }
+      },
+      "StarterCharacterScripts": {
+        "$className": "StarterCharacterScripts",
+        "$ignoreUnknownInstances": true,
+        "Movimiento": {
+          "$path": "src/StarterCharacterScripts/Movimiento.client.lua"
+        }
+      }
+    },
+    "ReplicatedStorage": {
+      "$className": "ReplicatedStorage",
+      "$ignoreUnknownInstances": true,
+      "Config": {
+        "$path": "src/ReplicatedStorage/Config.lua"
+      },
+      "TowerDefense": {
+        "$path": "src/ReplicatedStorage/TowerDefense.lua"
+      },
+      "Outfits": {
+        "$path": "src/ReplicatedStorage/Outfits.lua"
+      },
+      "Rig": {
+        "$path": "src/ReplicatedStorage/Rig.lua"
+      },
+      "BlenderGear": {
+        "$path": "src/ReplicatedStorage/BlenderGear.lua"
+      },
+      "TowerGear": {
+        "$path": "src/ReplicatedStorage/TowerGear.lua"
+      },
+      "Sfx": {
+        "$path": "src/ReplicatedStorage/Sfx.lua"
+      },
+      "Misiones": {
+        "$path": "src/ReplicatedStorage/Misiones.lua"
+      }
+    },
+    "ServerScriptService": {
+      "$className": "ServerScriptService",
+      "$ignoreUnknownInstances": true,
+      "HouseBuilder": {
+        "$path": "src/ServerScriptService/HouseBuilder.lua"
+      },
+      "ScareBehaviors": {
+        "$path": "src/ServerScriptService/ScareBehaviors.lua"
+      },
+      "TDMaps": {
+        "$path": "src/ServerScriptService/TDMaps.lua"
+      },
+      "TDMatch": {
+        "$path": "src/ServerScriptService/TDMatch.lua"
+      },
+      "MisionesServidor": {
+        "$path": "src/ServerScriptService/MisionesServidor.lua"
+      },
+      "Juego": {
+        "$path": "src/ServerScriptService/Juego.server.lua"
+      },
+      "TowerDefenseLobbies": {
+        "$path": "src/ServerScriptService/TowerDefenseLobbies.server.lua"
+      },
+      "MapaSeguridad": {
+        "$path": "src/ServerScriptService/MapaSeguridad.server.lua"
+      },
+      "NivelCabeza": {
+        "$path": "src/ServerScriptService/NivelCabeza.server.lua"
+      },
+      "Rankings": {
+        "$path": "src/ServerScriptService/Rankings.server.lua"
+      }
+    },
+    "ServerStorage": {
+      "$className": "ServerStorage",
+      "$ignoreUnknownInstances": true,
+      "MapasPro": {
+        "$path": "src/ServerStorage/MapasPro.lua"
+      },
+      "ZombieHollowData": {
+        "$path": "src/ServerStorage/ZombieHollowData.lua"
+      },
+      "ZombieHollowKitData": {
+        "$path": "src/ServerStorage/ZombieHollowKitData.lua"
+      },
+      "MapaScarecrowFields": {
+        "$path": "src/ServerStorage/MapaScarecrowFields.lua"
+      },
+      "ImportadorBlenderTD": {
+        "$path": "src/ServerStorage/ImportadorBlenderTD.lua"
+      },
+      "MapasNuevosLib": {
+        "$path": "src/ServerStorage/MapasNuevosLib.lua"
+      },
+      "CursedCarnivalData": {
+        "$path": "src/ServerStorage/CursedCarnivalData.lua"
+      },
+      "CursedCarnivalKitData": {
+        "$path": "src/ServerStorage/CursedCarnivalKitData.lua"
+      },
+      "CursedCarnivalBuilder": {
+        "$path": "src/ServerStorage/CursedCarnivalBuilder.lua"
+      },
+      "TiendasMapaBuilder": {
+        "$path": "src/ServerStorage/TiendasMapaBuilder.lua"
+      },
+      "MapaBloodMoonCemetery": {
+        "$path": "src/ServerStorage/MapaBloodMoonCemetery.lua"
+      },
+      "FusionBuilder": {
+        "$path": "src/ServerStorage/FusionBuilder.lua"
+      },
+      "SustosBloques": {
+        "$path": "src/ServerStorage/SustosBloques.lua"
+      },
+      "MapaGhostHarbor": {
+        "$path": "src/ServerStorage/MapaGhostHarbor.lua"
+      },
+      "MapaCursedCastle": {
+        "$path": "src/ServerStorage/MapaCursedCastle.lua"
+      },
+      "MapaWitchBayou": {
+        "$path": "src/ServerStorage/MapaWitchBayou.lua"
+      },
+      "MapaFrozenPeak": {
+        "$path": "src/ServerStorage/MapaFrozenPeak.lua"
+      },
+      "MapaFallenCathedral": {
+        "$path": "src/ServerStorage/MapaFallenCathedral.lua"
+      },
+      "FusionModelData": {
+        "$path": "src/ServerStorage/FusionModelData.lua"
+      },
+      "MapaVoidcoreRift": {
+        "$path": "src/ServerStorage/MapaVoidcoreRift.lua"
+      },
+      "_TowerGearBuilder": {
+        "$path": "src/ServerStorage/_TowerGearBuilder.lua"
+      },
+      "SkinsBuilder": {
+        "$path": "src/ServerStorage/SkinsBuilder.lua"
+      },
+      "MapasRectos": {
+        "$path": "src/ServerStorage/MapasRectos.lua"
+      },
+      "MapasRectosDefs": {
+        "$path": "src/ServerStorage/MapasRectosDefs.lua"
+      },
+      "SustosPersonajes": {
+        "$path": "src/ServerStorage/SustosPersonajes.lua"
+      }
+    }
+  }
+}
