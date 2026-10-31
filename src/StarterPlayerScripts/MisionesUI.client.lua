@@ -4,7 +4,7 @@
 --  * La ventana MISSIONS (al pulsar el panel): cabecera oscura con la ilustración, filas con título, descripción,
 --    progreso, recompensas (monedas, gemas, experiencia) y FOLLOW / CLAIM, como los menús de misiones de los juegos
 --    de defensa.
---  * FOLLOW: flechas en el suelo que siguen el camino de verdad (PathfindingService: rodean casas, vallas y tumbas)
+--  * FOLLOW: flechas en el suelo en línea recta (sin rodear nada)
 --    desde tus pies hasta el sitio (tu casa, la ruleta, los lobbies del Tower Defense, el caldero, la casa de un
 --    vecino), una columna de luz con anillos en el destino, un marcador encima con la distancia y, si no lo ves, una
 --    flecha en el borde de la pantalla. Al llegar se apaga solo. Las de comprar abren la pantalla de sustos.
@@ -13,7 +13,6 @@ local RS = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
 local TweenService = game:GetService("TweenService")
 local HttpService = game:GetService("HttpService")
-local PathfindingService = game:GetService("PathfindingService")
 
 local Config = require(RS:WaitForChild("Config"))
 local Q = require(RS:WaitForChild("Misiones"))
@@ -82,16 +81,17 @@ local function byId(id)
 end
 
 ---------- FOLLOW: rastro, marcador y flecha del borde ----------
-local guide -- {id, q, go, pos, reach, part, color, dist, t0, track, busy, s0}
+local guide -- {id, q, go, pos, reach, part, color, dist, t0, track, tracedAt, s0}
 
--- El rastro: flechas gordas del kit (la pieza "arrow", del color de la misión, con su brillo debajo) pegadas al suelo.
--- Corren hacia el destino, cada poco las recorre una ola de luz y junto a tus pies y al final se desvanecen.
-local TRAIL_GAP = 4 -- separación entre flechas (studs)
+-- El rastro: triángulos rosas con borde negro pegados al suelo, en fila recta hacia el destino. Corren hacia allí,
+-- cada poco los recorre una ola de luz y junto a tus pies y al final se desvanecen.
+local TRAIL_GAP = 3 -- separación entre flechas (studs)
 local TRAIL_SPEED = 5.5 -- lo que corren hacia el destino (studs/s)
 local TRAIL_AHEAD = 130 -- hasta dónde se dibujan por delante de ti
-local TRAIL_SIZE = 5 -- lado del cuadro de cada flecha (la flecha ocupa el centro; el resto es brillo)
-local OFF_TRACK = 9 -- si te alejas más del camino, se recalcula
-local ARROW_ROT = -90 -- (la pieza apunta hacia abajo del lienzo, que en la cara de arriba cae de lado)
+local TRAIL_SIZE = 3 -- lado del cuadro de cada flecha
+local OFF_TRACK = 2.5 -- si te sales más de la línea, se vuelve a trazar desde donde estás
+local ARROW_ROT = 90 -- (el triángulo apunta arriba del lienzo, que en la cara de arriba cae de lado)
+local ARROW_COLOR = Color3.fromRGB(255, 128, 128)
 local trailFolder = new("Folder", {Name = "MisionRastro"})
 local arrows = {}
 local rayParams = RaycastParams.new()
@@ -108,9 +108,10 @@ local function arrowAt(i)
 		Size = Vector3.new(TRAIL_SIZE, 0.05, TRAIL_SIZE),
 	}, trailFolder)
 	local sg = new("SurfaceGui", {Face = Enum.NormalId.Top, LightInfluence = 0, Brightness = 1.4, CanvasSize = Vector2.new(128, 128)}, p)
-	local glow = UI.piece("glow2", {AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.fromScale(0.5, 0.5), Size = UDim2.fromScale(1, 1)}, sg)
-	local img = UI.piece("arrow", {AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.fromScale(0.5, 0.5), Size = UDim2.fromScale(0.58, 0.58), Rotation = ARROW_ROT, ZIndex = 2}, sg)
-	a = {part = p, glow = glow, img = img}
+	local img = new("TextLabel", {AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.fromScale(0.5, 0.5), Size = UDim2.fromScale(1, 1), Rotation = ARROW_ROT,
+		BackgroundTransparency = 1, Text = "▲", TextScaled = true, Font = Enum.Font.GothamBlack, TextColor3 = ARROW_COLOR}, sg)
+	local stroke = new("UIStroke", {Color = Color3.fromRGB(20, 12, 16), Thickness = 5}, img)
+	a = {part = p, img = img, stroke = stroke}
 	arrows[i] = a
 	return a
 end
@@ -184,38 +185,17 @@ local function progress(tr, pos, from)
 	return bi, math.sqrt(best)
 end
 
--- Pide el camino (en segundo plano: hasta que llega se sigue viendo el anterior)
+-- Traza la línea recta desde donde estás hasta el destino
 local function requestPath()
 	local g = guide
 	local root = player.Character and player.Character:FindFirstChild("HumanoidRootPart")
-	if not (g and root) or g.busy then
-		return
+	if not (g and root) or os.clock() - (g.tracedAt or 0) < 0.15 then
+		return -- (como mucho unas pocas veces por segundo: cada trazado mira el suelo cada stud)
 	end
-	g.busy = true
-	local from, to = root.Position, g.pos
+	g.tracedAt = os.clock()
 	rayParams.FilterDescendantsInstances = {player.Character, trailFolder, g.part}
-	task.spawn(function()
-		local pts
-		local path = PathfindingService:CreatePath({AgentRadius = 1.6, AgentHeight = 5, AgentCanJump = true, WaypointSpacing = 5})
-		local ok = pcall(path.ComputeAsync, path, from, to)
-		if ok and (path.Status == Enum.PathStatus.Success or path.Status == Enum.PathStatus.ClosestNoPath) then
-			pts = {}
-			for _, w in path:GetWaypoints() do
-				table.insert(pts, w.Position)
-			end
-			if path.Status == Enum.PathStatus.ClosestNoPath then
-				table.insert(pts, to) -- (el último tramo, recto hasta el sitio)
-			end
-		end
-		if not pts or #pts < 2 then
-			pts = {(groundAt(from - Vector3.new(0, 3, 0))), to} -- sin camino: en línea recta
-		end
-		if guide == g then
-			g.track = buildTrack(pts)
-			g.s0 = nil
-		end
-		g.busy = false
-	end)
+	g.track = buildTrack({(groundAt(root.Position - Vector3.new(0, 3, 0))), g.pos})
+	g.s0 = nil
 end
 
 local function hideTrail()
@@ -239,7 +219,6 @@ local function updateTrail(root, t)
 	local phase = (t * TRAIL_SPEED) % TRAIL_GAP
 	local first = math.ceil((start - phase) / TRAIL_GAP)
 	local parts, cfs = {}, {}
-	local light = guide.color:Lerp(WHITE, 0.12)
 	local used = 0
 	for k = first, math.huge do
 		local d = k * TRAIL_GAP + phase
@@ -257,11 +236,10 @@ local function updateTrail(root, t)
 			local vis = fadeIn * fadeOut * far
 			local wave = math.max(0, math.sin((d - t * 26) / 10)) ^ 6
 			local s = (0.5 + 0.5 * vis) * (1 + 0.28 * wave)
-			a.img.Size = UDim2.fromScale(0.62 * s, 0.62 * s)
-			a.img.ImageTransparency = 1 - vis
-			a.img.ImageColor3 = light:Lerp(WHITE, wave * 0.6)
-			a.glow.ImageColor3 = guide.color
-			a.glow.ImageTransparency = 1 - vis * (0.45 + 0.4 * wave)
+			a.img.Size = UDim2.fromScale(s, s)
+			a.img.TextTransparency = 1 - vis
+			a.stroke.Transparency = 1 - vis
+			a.img.TextColor3 = ARROW_COLOR:Lerp(WHITE, wave * 0.5)
 			local up = nrm.Magnitude > 0.5 and nrm.Unit or Vector3.yAxis
 			local at = pos + up * 0.14
 			table.insert(parts, a.part)
@@ -273,8 +251,8 @@ local function updateTrail(root, t)
 	end
 	-- las que sobran, fuera de la vista
 	for i = used + 1, #arrows do
-		arrows[i].img.ImageTransparency = 1
-		arrows[i].glow.ImageTransparency = 1
+		arrows[i].img.TextTransparency = 1
+		arrows[i].stroke.Transparency = 1
 	end
 end
 local edgeGui = new("ScreenGui", {Name = "MisionFlecha", ResetOnSpawn = false, IgnoreGuiInset = true, DisplayOrder = 3}, playerGui)
@@ -414,7 +392,7 @@ local function startFollow(q)
 	local part, rings = beacon(pos, color)
 	guide = {id = q.id, q = q, go = k.go, pos = pos, reach = reach, part = part, rings = rings, color = color, dist = "", t0 = os.clock()}
 	for _, a in arrows do
-		a.img.ImageTransparency, a.glow.ImageTransparency = 1, 1
+		a.img.TextTransparency, a.stroke.Transparency = 1, 1
 	end
 	requestPath()
 	edgeDisc.BackgroundColor3 = color

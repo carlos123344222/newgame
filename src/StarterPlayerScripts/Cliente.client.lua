@@ -111,6 +111,16 @@ UI.homeButton.Activated:Connect(function()
 	end
 	Remote:FireServer("GoHome")
 end)
+-- atajos: teletransporte a la Ruleta y a los lobbies del Tower Defense
+for _, b in {{8, "wheel", "Wheel", Color3.fromRGB(255, 80, 170), "wheel"}, {10, "skull", "Tower Def.", Color3.fromRGB(226, 60, 84), "td"}} do
+	UI.menuButton(b[1], b[2], b[3], b[4]).Activated:Connect(function()
+		if player:GetAttribute("Mode") then
+			return UI.toast("Leave first, then teleport", UI.RED)
+		end
+		UI.sound("Portal")
+		Remote:FireServer("GoTo", b[5])
+	end)
+end
 UI.helpButton.Activated:Connect(function()
 	task.spawn(Tutorial.help)
 end)

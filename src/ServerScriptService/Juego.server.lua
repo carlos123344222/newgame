@@ -1451,6 +1451,34 @@ function actions.GoHome(plr)
 	end
 end
 
+-- Atajos del menú: a la Ruleta (delante del mostrador, mirándolo) o a la explanada de los lobbies del Tower Defense
+local travelAt = {}
+function actions.GoTo(plr, where)
+	local hum = plr.Character and plr.Character:FindFirstChildOfClass("Humanoid")
+	if not (state[plr] and hum and hum.Health > 0) or plr:GetAttribute("Mode") or os.clock() < (travelAt[plr] or 0) then
+		return
+	end
+	local to
+	if where == "wheel" then
+		local booth = workspace.Mapa:FindFirstChild("Tiendas") and workspace.Mapa.Tiendas:FindFirstChild("Ruleta")
+		local counter = booth and booth:FindFirstChild("Mostrador", true)
+		if counter then
+			local stand = counter.CFrame * CFrame.new(0, 1.4, -8) -- (el mostrador mira hacia -Z: el frente)
+			to = CFrame.lookAt(stand.Position, Vector3.new(counter.Position.X, stand.Position.Y, counter.Position.Z))
+		end
+	elseif where == "td" then
+		to = require(SSS.TDMaps).BACK
+	end
+	if to then
+		travelAt[plr] = os.clock() + 2
+		hum.Sit = false
+		plr.Character:PivotTo(to)
+	end
+end
+Players.PlayerRemoving:Connect(function(plr)
+	travelAt[plr] = nil
+end)
+
 function actions.Test(plr)
 	local st = state[plr]
 	if st and st.house and plr:GetAttribute("Mode") == "home" then
