@@ -8,6 +8,9 @@
       "$ignoreUnknownInstances": true,
       "LlegadaTD": {
         "$path": "src/ReplicatedFirst/LlegadaTD.client.lua"
+      },
+      "Orientacion": {
+        "$path": "src/ReplicatedFirst/Orientacion.client.lua"
       }
     },
     "StarterPlayer": {
