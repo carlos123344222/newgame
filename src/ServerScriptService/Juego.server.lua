@@ -555,7 +555,7 @@ end
 local function syncCounters(plr, st)
 	local c = counters(st)
 	plr:SetAttribute("M_Scared", c.mScared)
-	plr:SetAttribute("M_XP", c.mXP)
+	plr:SetAttribute("M_XP", plr:GetAttribute("PXP") or 0) -- (tablero Most Experience: experiencia total)
 	plr:SetAttribute("M_Likes", c.mLikes)
 	plr:SetAttribute("M_Endless", c.mEndless)
 	if st.house then
@@ -2113,27 +2113,64 @@ end
 -- Fusión (Caldero de Hexa): funde copias repetidas de un susto de la mochila y sube su estrella. Vale para todos los de
 -- ese tipo, también los colocados. Hay que estar junto al caldero.
 local FUSE_REACH = 30
+-- Fusionar: se funden STAR_COST copias y te queda una, la fusionada, con la estrella nueva (antes se fundían todas y,
+-- si no tenías más, te quedabas sin el susto). Cuentan las de la mochila y las colocadas en tu casa: se gastan primero
+-- las de la mochila y, si faltan, se recogen de la casa (las que quedan colocadas ya brillan con la estrella).
+local function fuseCopies(st, t)
+	local placed = {}
+	if st.house then
+		for id, s in st.house.scares do
+			if s.type == t then
+				table.insert(placed, {id = id, s = s})
+			end
+		end
+	end
+	return (st.inv[t] or 0) + #placed, placed
+end
 function actions.Fuse(plr, t)
 	local st = state[plr]
 	local def = typeof(t) == "string" and Config.Scares[t]
 	if not st or not def or def.skin then
 		return
 	end
+	if st.frozen then
+		return Remote:FireClient(plr, "Info", "You're travelling: try again in a moment")
+	end
 	local station = workspace.Mapa:FindFirstChild("Tiendas") and workspace.Mapa.Tiendas:FindFirstChild("Fusion")
 	local root = plr.Character and plr.Character:FindFirstChild("HumanoidRootPart")
 	if not (station and root and (root.Position - station:GetPivot().Position).Magnitude < FUSE_REACH) then
-		return
+		return Remote:FireClient(plr, "Info", "Get closer to Hexa's Cauldron to fuse")
 	end
 	local star = Config.starOf(plr, t)
 	if star >= Config.STAR_MAX then
 		return Remote:FireClient(plr, "Info", "Already at max stars!")
 	end
 	local cost = Config.STAR_COST[star + 1]
-	if (st.inv[t] or 0) < cost then
-		return Remote:FireClient(plr, "Info", ("You need %d copies in your bag to fuse"):format(cost))
+	local total, placed = fuseCopies(st, t)
+	if total < cost then
+		return Remote:FireClient(plr, "Info", ("You need %d copies to fuse (you have %d)"):format(cost, total))
 	end
-	st.inv[t] -= cost
+	-- se gastan cost - 1 copias (la que queda es la fusionada): primero de la mochila, luego de la casa
+	local use = cost - 1
+	local fromBag = math.min(st.inv[t] or 0, use)
+	local fromHouse = {}
+	for _, p in placed do
+		if #fromHouse >= use - fromBag then
+			break
+		end
+		if not p.s.busy then
+			table.insert(fromHouse, p)
+		end
+	end
+	if fromBag + #fromHouse < use then
+		return Remote:FireClient(plr, "Info", "Your scares are busy scaring someone: wait a moment")
+	end
+	st.inv[t] = (st.inv[t] or 0) - fromBag
 	plr:SetAttribute("Inv_" .. t, st.inv[t])
+	for _, p in fromHouse do
+		st.house.scares[p.id] = nil
+		p.s.model:Destroy()
+	end
 	star += 1
 	plr:SetAttribute("Star_" .. t, star)
 	Misiones.add(plr, "fuse", 1)
@@ -2145,6 +2182,7 @@ function actions.Fuse(plr, t)
 	if star == Config.STAR_MAX and Config.isJackpot(t) then
 		Remote:FireAllClients("Announce", plr.DisplayName, t, "fuse")
 	end
+	task.spawn(save, plr) -- (se guarda ya: una fusión no se pierde aunque el servidor se cierre)
 end
 
 ---------- Perfil de otro jugador (PerfilJugador) ----------
@@ -2350,7 +2388,8 @@ local RANK_FIELDS = {Scared = "mScared", XP = "mXP", Likes = "mLikes", Endless =
 local function writeRanks(plr, st)
 	local c = counters(st)
 	for kind, field in RANK_FIELDS do
-		local v = math.floor(c[field] or 0)
+		-- (Most Experience: la experiencia total, la que da el nivel, para que más experiencia sea siempre más nivel)
+		local v = math.floor(kind == "XP" and (plr:GetAttribute("PXP") or 0) or c[field] or 0)
 		local k = c.month .. kind
 		if v > 0 and st.sent[k] ~= v and pcall(function()
 			rankStore(kind, c.month):SetAsync("u" .. plr.UserId, v)
@@ -2512,6 +2551,14 @@ saveFn.OnInvoke = function(plr, freeze)
 		bankCoins(plr)
 		save(plr, true)
 		st.frozen = true
+		-- si el viaje se cuelga sin avisar y el jugador sigue aquí, se descongela: si no, nada de lo que hiciera
+		-- después (fusiones, ruleta, monedas) se guardaría
+		task.delay(75, function()
+			if state[plr] == st and st.frozen and plr.Parent then
+				st.frozen = nil
+				save(plr)
+			end
+		end)
 	end
 end
 saveFn.Parent = SSS
@@ -2709,6 +2756,8 @@ local function onPlayerAdded(plr)
 		local v = plr:GetAttribute("PXP") or 0
 		if v > lastPXP then
 			count(plr, "mXP", v - lastPXP)
+		else
+			syncCounters(plr, st) -- (también si baja: el tablero enseña la experiencia total)
 		end
 		lastPXP = v
 	end)

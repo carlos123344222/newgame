@@ -63,10 +63,23 @@ return function(UI)
 		end
 	end
 
-	-- ¿Cuántas copias hay en la mochila, qué estrella tiene y cuántas pide la siguiente?
+	local function placedCount(t)
+		local plot = player:GetAttribute("Plot")
+		local casas = workspace:FindFirstChild("Casas")
+		local house = plot and casas and casas:FindFirstChild("Casa" .. plot)
+		local placed = house and house:FindFirstChild("Scares")
+		local n = 0
+		for _, m in placed and placed:GetChildren() or {} do
+			n += m.Name == t and 1 or 0
+		end
+		return n
+	end
+
+	-- ¿Cuántas copias tienes (mochila + colocadas en tu casa), qué estrella tiene y cuántas pide la siguiente?
+	-- (el servidor gasta primero las de la mochila; al fusionar te queda una, la fusionada)
 	local function info(t)
 		local star = Config.starOf(player, t)
-		local n = player:GetAttribute("Inv_" .. t) or 0
+		local n = (player:GetAttribute("Inv_" .. t) or 0) + placedCount(t)
 		local cost = star < Config.STAR_MAX and Config.STAR_COST[star + 1] or 0
 		return n, star, cost, star < Config.STAR_MAX and n >= cost
 	end
@@ -340,7 +353,7 @@ return function(UI)
 			local need = cost - n
 			fuseBtn.Text, fuseBtn.TextSize, fuseBtn.BackgroundColor3 = ("NEED %d MORE"):format(need), 22, UI.CANT
 		end
-		note.Text = ("Copies are used up · all your %ss get the star"):format(def.name)
+		note.Text = ("You keep 1 %s with the new star · the others are used up"):format(def.name)
 	end
 
 	function UI.refreshFusion()
@@ -488,18 +501,6 @@ return function(UI)
 	end
 	okBtn.Activated:Connect(closeResult)
 
-	local function placedCount(t)
-		local plot = player:GetAttribute("Plot")
-		local casas = workspace:FindFirstChild("Casas")
-		local house = plot and casas and casas:FindFirstChild("Casa" .. plot)
-		local placed = house and house:FindFirstChild("Scares")
-		local n = 0
-		for _, m in placed and placed:GetChildren() or {} do
-			n += m.Name == t and 1 or 0
-		end
-		return n
-	end
-
 	local function showResult(t, star)
 		local def = Config.Scares[t]
 		local col = STARS[star]
@@ -558,6 +559,9 @@ return function(UI)
 		end
 	end
 	player.AttributeChanged:Connect(function(name)
+		if (name == "Placed" or name == "PlacedTypes") and win.Visible then
+			return UI.refreshFusion() -- (las colocadas en tu casa también cuentan)
+		end
 		local t = name:match("^Inv_(.+)$") or name:match("^Star_(.+)$")
 		if not (t and Config.Scares[t]) then
 			return
