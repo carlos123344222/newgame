@@ -2147,6 +2147,149 @@ function actions.Fuse(plr, t)
 	end
 end
 
+---------- Perfil de otro jugador (PerfilJugador) ----------
+-- Botón "Visit house" del panel: te lleva delante de la casa de ese jugador
+function actions.VisitPlayer(plr, userId)
+	local target = typeof(userId) == "number" and Players:GetPlayerByUserId(userId)
+	local tst = target and target ~= plr and state[target]
+	if not (tst and tst.house and plr.Character) or plr:GetAttribute("Mode") or os.clock() < (travelAt[plr] or 0) then
+		return
+	end
+	travelAt[plr] = os.clock() + 1
+	local root = plr.Character:FindFirstChild("HumanoidRootPart")
+	if root then
+		poofAt(root.Position)
+	end
+	local to = frontOf(tst.house)
+	plr.Character:PivotTo(to)
+	poofAt(to.Position)
+end
+
+---------- Panel de administrador (AdminPanel; solo Config.isAdmin) ----------
+-- El cliente manda Remote:FireServer("Admin", comando, userId del objetivo, valor, valor2). Aquí se vuelve a comprobar
+-- quién lo pide: un exploit puede disparar el remote, pero no pasar de esta comprobación.
+local TextService = game:GetService("TextService")
+local function adminTell(plr, text)
+	Remote:FireClient(plr, "Notice", text)
+end
+local function charOf(p)
+	local root = p and p.Character and p.Character:FindFirstChild("HumanoidRootPart")
+	return root and p.Character, root
+end
+local adminCmds = {}
+function adminCmds.BloodStart(plr)
+	workspace:SetAttribute("BloodOff", nil)
+	workspace:SetAttribute("BloodForce", workspace:GetServerTimeNow() + Config.BLOOD_LENGTH)
+	return "Blood Night started (" .. Config.BLOOD_LENGTH .. " s)"
+end
+function adminCmds.BloodStop(plr)
+	workspace:SetAttribute("BloodForce", nil)
+	local on, at = Config.bloodNight(workspace:GetServerTimeNow())
+	if on then
+		workspace:SetAttribute("BloodOff", at) -- (la del reloj que estaba en marcha también se corta)
+	end
+	return "Blood Night stopped"
+end
+function adminCmds.Coins(plr, target, n)
+	local money = target.leaderstats.Coins
+	money.Value = math.max(0, money.Value + n)
+	return ("%+d coins to %s (now %d)"):format(n, target.Name, money.Value)
+end
+function adminCmds.Gems(plr, target, n)
+	target:SetAttribute("Gems", math.max(0, (target:GetAttribute("Gems") or 0) + n))
+	return ("%+d gems to %s"):format(n, target.Name)
+end
+function adminCmds.XP(plr, target, n)
+	target:SetAttribute("PXP", math.max(0, (target:GetAttribute("PXP") or 0) + n))
+	return ("%+d XP to %s (level %d)"):format(n, target.Name, Config.playerLevel(target))
+end
+function adminCmds.Level(plr, target, n)
+	local lv = math.clamp(math.floor(n), 1, Config.PLAYER_MAX_LEVEL)
+	target:SetAttribute("PXP", Config.pxpTotal(lv))
+	return ("%s is now level %d"):format(target.Name, lv)
+end
+function adminCmds.Scare(plr, target, t, n)
+	if typeof(t) ~= "string" or not Config.Scares[t] then
+		return nil, "Unknown scare"
+	end
+	n = math.clamp(math.floor(tonumber(n) or 1), 1, 50)
+	for _ = 1, n do
+		give(target, t)
+	end
+	adminTell(target, ("An admin gave you %d× %s!"):format(n, Config.Scares[t].name))
+	return ("%d× %s to %s"):format(n, Config.Scares[t].name, target.Name)
+end
+function adminCmds.Luck(plr, target, n)
+	if not table.find(Config.LUCK_BOOSTS, n) then
+		return nil, "Luck must be 1, 10 or 100"
+	end
+	target:SetAttribute("LuckBoost", n)
+	return ("Luck x%d for %s"):format(n, target.Name)
+end
+function adminCmds.TpTo(plr, target)
+	local me = charOf(plr)
+	local _, root = charOf(target)
+	if not (me and root) or plr:GetAttribute("Mode") then
+		return nil, "Can't teleport now"
+	end
+	me:PivotTo(root.CFrame * CFrame.new(0, 0, 4))
+	return "Teleported to " .. target.Name
+end
+function adminCmds.Bring(plr, target)
+	local _, root = charOf(plr)
+	local them = charOf(target)
+	if not (root and them) or target:GetAttribute("Mode") then
+		return nil, target.Name .. " can't be moved now (inside a house?)"
+	end
+	them:PivotTo(root.CFrame * CFrame.new(0, 0, -4))
+	return "Brought " .. target.Name
+end
+function adminCmds.Kick(plr, target)
+	if Config.isAdmin(target) then
+		return nil, "You can't kick an admin"
+	end
+	target:Kick("You were kicked by an admin.")
+	return "Kicked " .. target.Name
+end
+function adminCmds.Announce(plr, _, text)
+	if typeof(text) ~= "string" or #text == 0 or #text > 200 then
+		return nil, "Write a message (max 200 letters)"
+	end
+	-- (los mensajes que ven todos tienen que pasar el filtro de Roblox)
+	local ok, filtered = pcall(function()
+		return TextService:FilterStringAsync(text, plr.UserId, Enum.TextFilterContext.PublicChat):GetNonChatStringForBroadcastAsync()
+	end)
+	if not ok then
+		return nil, "The text filter failed, try again"
+	end
+	Remote:FireAllClients("AdminAnnounce", plr.DisplayName, filtered)
+	return "Announcement sent"
+end
+-- los que no necesitan un jugador objetivo
+local NO_TARGET = {BloodStart = true, BloodStop = true, Announce = true}
+function actions.Admin(plr, cmd, userId, a, b)
+	local f = typeof(cmd) == "string" and adminCmds[cmd]
+	if not (Config.isAdmin(plr) and f) then
+		return
+	end
+	local target
+	if not NO_TARGET[cmd] then
+		target = typeof(userId) == "number" and Players:GetPlayerByUserId(userId)
+		if not (target and state[target]) then
+			return adminTell(plr, "That player isn't in the server")
+		end
+		if cmd ~= "Scare" and (typeof(a) ~= "number" or a ~= a or math.abs(a) > 1e9) and cmd ~= "TpTo" and cmd ~= "Bring" and cmd ~= "Kick" then
+			return adminTell(plr, "Write a valid number")
+		end
+	end
+	local ok, msg, err = pcall(f, plr, target, a, b)
+	if not ok then
+		warn("Admin " .. cmd .. ": " .. tostring(msg))
+		return adminTell(plr, "Error: " .. tostring(msg))
+	end
+	adminTell(plr, msg or err or "Done")
+end
+
 Remote.OnServerEvent:Connect(function(plr, action, ...)
 	local f = actions[action]
 	if f then

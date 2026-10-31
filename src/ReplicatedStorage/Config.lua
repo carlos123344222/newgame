@@ -251,6 +251,13 @@ end
 -- Multiplica el peso de las rarezas, más cuanto más raras (el mítico, por todo el boost; la común, nada), y la
 -- probabilidad de las variantes de material.
 Config.LUCK_ADMINS = {[1718637537] = true} -- lebrowsent
+-- Administradores (panel de admin y comandos): por UserId y, si aún no sabemos su UserId, por nombre de usuario
+-- (en minúsculas). Lo más seguro es el UserId: el nombre de usuario se puede cambiar.
+Config.ADMINS = {[1718637537] = true} -- lebrowsent
+Config.ADMIN_NAMES = {unomasunoasetres = true}
+function Config.isAdmin(plr)
+	return plr ~= nil and (Config.ADMINS[plr.UserId] == true or Config.ADMIN_NAMES[string.lower(plr.Name)] == true)
+end
 Config.LUCK_BOOSTS = {1, 10, 100}
 -- Siempre al nivel máximo (solo estos UserId): Juego les sube la experiencia al entrar
 Config.MAX_LEVEL_USERS = {} -- (vacío: lebrowsent empieza desde cero, 2026-10-29)
@@ -1292,9 +1299,15 @@ Config.BLOOD_LUCK = 6 -- multiplica la suerte (los míticos x6; los menos raros,
 Config.BLOOD_VARIANT = 3 -- y la probabilidad de llegar hecho de otra materia
 Config.BLOOD_COINS = 1.5
 -- ¿Hay Noche de Sangre en now (GetServerTimeNow)? Devuelve si está activa y cuándo acaba (o cuándo empieza la siguiente)
+-- Un admin puede empezarla o cortarla (panel de admin): atributos BloodForce / BloodOff de Workspace (hora en que acaba)
 function Config.bloodNight(now)
+	local force = workspace:GetAttribute("BloodForce")
+	if typeof(force) == "number" and now < force then
+		return true, force
+	end
 	local t = (now - Config.BLOOD_OFFSET) % Config.BLOOD_EVERY
-	if t < Config.BLOOD_LENGTH then
+	local off = workspace:GetAttribute("BloodOff")
+	if t < Config.BLOOD_LENGTH and not (typeof(off) == "number" and now < off) then
 		return true, now - t + Config.BLOOD_LENGTH
 	end
 	return false, now - t + Config.BLOOD_EVERY

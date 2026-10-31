@@ -4,7 +4,7 @@ Juego de Roblox. Los scripts se sincronizan con Roblox Studio mediante [Rojo](ht
 
 ## Qué controla Rojo
 
-Solo los **81 scripts** de `src/`. Todo lo demás (mapas, modelos, `Assets`, interfaz, sonidos...) sigue
+Solo los **83 scripts** de `src/`. Todo lo demás (mapas, modelos, `Assets`, interfaz, sonidos...) sigue
 viviendo en el archivo de Studio y Rojo no lo toca (`$ignoreUnknownInstances` en todos los servicios).
 
 | Carpeta | En Studio |
@@ -27,7 +27,7 @@ Extensiones: `.server.lua` = Script, `.client.lua` = LocalScript, `.lua` = Modul
 2. `rojo serve` (en esta carpeta)
 3. En Studio, con **este** juego abierto: Plugins → Rojo → **Connect**.
 
-Importante: con Rojo conectado, los cambios a esos 81 scripts se hacen en los archivos de `src/`. Si los
+Importante: con Rojo conectado, los cambios a esos 83 scripts se hacen en los archivos de `src/`. Si los
 editas a mano en Studio, se pierden en la siguiente sincronización.
 
 `roblox copia.rbxl` es una copia del juego completo (del 31/10/2026), por si hace falta recuperar algo.
@@ -36,3 +36,12 @@ editas a mano en Studio, se pierden en la siguiente sincronización.
 
 `tools/Limpieza.lua`: borra de `ServerStorage` las copias viejas e importaciones que ya no usa nada. Se pega en la
 barra de comandos de Studio (se puede deshacer con Ctrl+Z).
+
+## Admin
+
+Los admins están en `src/ReplicatedStorage/Config.lua` (`Config.ADMINS` por UserId y `Config.ADMIN_NAMES` por nombre de
+usuario). Les sale el botón **Admin** en el menú lateral: monedas, gemas, experiencia, nivel, suerte, dar sustos, ir hasta
+un jugador / traerlo / echarlo, empezar o cortar la Noche de Sangre y anuncios para todos. El servidor (`Juego`,
+`actions.Admin`) vuelve a comprobar que eres admin antes de hacer nada.
+
+Pulsar en otro jugador abre su perfil (`PerfilJugador`): nivel, monedas, estadísticas, su casa y su equipo del Tower Defense.
