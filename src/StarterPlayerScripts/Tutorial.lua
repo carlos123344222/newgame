@@ -207,6 +207,27 @@ local function showArrow(on)
 	end
 end
 
+---------- Flechas en el suelo hasta tu casa ----------
+-- El rastro de las misiones (MisionesUI: UI.guideTo): chevrones en el suelo desde tus pies hasta tu portal, una
+-- columna de luz encima y, si no lo ves, una flecha en el borde de la pantalla. Se quita solo al entrar.
+local function guideHome(on)
+	if not on then
+		if UI.stopGuide then
+			UI.stopGuide()
+		end
+		return
+	end
+	task.spawn(function()
+		local t0 = os.clock()
+		while not UI.guideTo and os.clock() - t0 < 10 do
+			task.wait(0.2) -- (MisionesUI puede cargar después que el tutorial)
+		end
+		if UI.guideTo and player:GetAttribute("Mode") == nil then
+			UI.guideTo("house", "house", UI.ORANGE)
+		end
+	end)
+end
+
 ---------- Pantalla del tutorial: la mano, la carta que arrastra y un bloqueo para la escena ----------
 local gui = UI.new("ScreenGui", {Name = "TutorialFX", ResetOnSpawn = false, IgnoreGuiInset = true, DisplayOrder = 30}, player:WaitForChild("PlayerGui"))
 -- durante la escena nada se pulsa (un Frame activo se traga los clics sin poner el cursor de mano)
@@ -500,6 +521,7 @@ local function check()
 	local home = player:GetAttribute("Mode") == "home"
 	if step == 1 then
 		showArrow(not home)
+		guideHome(not home)
 		if home then
 			setStep(2)
 		end
@@ -564,6 +586,7 @@ function Tutorial.help()
 	if myHouse() and player:GetAttribute("Mode") == nil then
 		talk(LINES.follow, true)
 		showArrow(true)
+		guideHome(true)
 		task.delay(8, function()
 			if step ~= 1 then
 				showArrow(false)

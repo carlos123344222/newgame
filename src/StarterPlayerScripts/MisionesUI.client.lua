@@ -369,6 +369,40 @@ local function arrive()
 	UI.toast(ARRIVE[go] or "You're here!", UI.GREEN, "check", {chip = "ARRIVED", time = 4})
 end
 
+-- El mismo rastro sin misión (el tutorial del alcalde lo usa para llevarte a tu casa): UI.guideTo("house"), y
+-- UI.stopGuide() para quitarlo. go: house, wheel, fuse, td o neighbor (targetOf). Se quita solo al llegar.
+function UI.guideTo(go, icon, color)
+	local pos, reach = targetOf(go)
+	if not pos then
+		return false
+	end
+	stopFollow()
+	color = color or GO_COLOR
+	rayParams.FilterDescendantsInstances = {player.Character, trailFolder}
+	local part, rings = beacon(pos, color)
+	guide = {id = "guide", go = go, pos = pos, reach = reach, part = part, rings = rings, color = color, dist = "", t0 = os.clock()}
+	guide.floor = groundAt(pos)
+	for _, c in chevrons do
+		c.gui.Enabled = false
+	end
+	edgeDisc.BackgroundColor3 = color
+	UI.setIcon(edgeIcon, icon or "target")
+	markerDisc.BackgroundColor3 = color
+	markerRays.ImageColor3 = color
+	UI.setIcon(markerIcon, icon or "target")
+	markerScale.Scale = 0.2
+	tween(markerScale, 0.45, {Scale = 1}, Enum.EasingStyle.Back)
+	if refreshAll then
+		refreshAll()
+	end
+	return true
+end
+function UI.stopGuide()
+	if guide and guide.id == "guide" then
+		stopFollow()
+	end
+end
+
 RunService.RenderStepped:Connect(function()
 	if not guide then
 		return
