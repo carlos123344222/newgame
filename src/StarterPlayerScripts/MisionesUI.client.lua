@@ -83,16 +83,16 @@ end
 ---------- FOLLOW: rastro, marcador y flecha del borde ----------
 local guide -- {id, q, go, pos, floor, reach, part, rings, color, dist, t0}
 
--- El rastro (como en los juegos de defensa): una banda de chevrones translúcidos, muy juntos, en línea recta desde tu
--- cuerpo hasta el destino. Se dibujan por encima de todo (también de tu personaje y de lo que haya en medio), corren
--- hacia allí, los recorre una ola de luz y cambian de color con la distancia: lima a tus pies, naranja en medio y
--- amarillo claro al fondo. El último se apaga antes de llegar a la columna del destino.
-local CHEVRON_GAP = 1.2 -- separación entre chevrones (studs)
-local CHEVRON_SIZE = 3.4 -- lado del cuadro de cada chevrón (lo ancho que es)
-local TRAIL_SPEED = 6 -- lo que corren hacia el destino (studs/s)
-local TRAIL_AHEAD = 95 -- hasta dónde se dibujan por delante de ti
-local TRAIL_BACK = 0.9 -- el primero sale de detrás de tu centro: la banda nace en tu cuerpo
-local TRAIL_OPACITY = 0.7
+-- El rastro (como en los juegos de defensa): chevrones translúcidos en línea recta desde justo delante de ti hasta el
+-- destino. Se dibujan por encima de todo (lo que haya en medio no los tapa), corren hacia allí, los recorre una ola de
+-- luz y cambian de color con la distancia: lima cerca, naranja en medio y amarillo claro al fondo. El último se apaga
+-- antes de llegar a la columna del destino.
+local CHEVRON_GAP = 2.6 -- separación entre chevrones (studs)
+local CHEVRON_SIZE = 3 -- lado del cuadro de cada chevrón (lo ancho que es)
+local TRAIL_SPEED = 5 -- lo que corren hacia el destino (studs/s)
+local TRAIL_START = 3.2 -- dónde sale el primero, por delante de tu centro (fuera del cuerpo)
+local TRAIL_AHEAD = 70 -- hasta dónde se dibujan
+local TRAIL_OPACITY = 0.85
 local TRAIL_COLORS = {
 	{0, Color3.fromRGB(176, 255, 92)},
 	{0.3, Color3.fromRGB(255, 214, 64)},
@@ -115,12 +115,13 @@ local function trailColor(u)
 	return TRAIL_COLORS[#TRAIL_COLORS][2]
 end
 
--- Un chevrón: dos barras redondeadas en V dentro de un CanvasGroup (así el cruce de la punta no se ve más opaco y
--- color y transparencia se cambian de una vez). En la cara de arriba de la pieza, la derecha del lienzo es su frente.
-local function bar(group, center, angle, len)
-	local b = new("Frame", {AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.fromOffset(center.X, center.Y), Size = UDim2.fromOffset(len, 13),
-		Rotation = angle, BackgroundColor3 = WHITE, BorderSizePixel = 0}, group)
+-- Un chevrón: dos barras redondeadas en V en una SurfaceGui. En la cara de arriba de la pieza,
+-- la derecha del lienzo es su frente.
+local function bar(sg, center, angle, len)
+	local b = new("Frame", {AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.fromOffset(center.X, center.Y), Size = UDim2.fromOffset(len, 14),
+		Rotation = angle, BackgroundColor3 = WHITE, BorderSizePixel = 0}, sg)
 	new("UICorner", {CornerRadius = UDim.new(1, 0)}, b)
+	return b
 end
 
 local function chevronAt(i)
@@ -132,16 +133,20 @@ local function chevronAt(i)
 		Name = "Chevron", Anchored = true, CanCollide = false, CanQuery = false, CanTouch = false, CastShadow = false, Transparency = 1,
 		Size = Vector3.new(CHEVRON_SIZE, 0.05, CHEVRON_SIZE),
 	}, trailFolder)
-	local sg = new("SurfaceGui", {Face = Enum.NormalId.Top, AlwaysOnTop = true, LightInfluence = 0, CanvasSize = Vector2.new(100, 100)}, p)
-	local group = new("CanvasGroup", {Size = UDim2.fromScale(1, 1), BackgroundTransparency = 1, GroupTransparency = 1}, sg)
-	-- punta en (70, 50), colas en (28, 9) y (28, 91)
-	local len = math.sqrt(42 ^ 2 + 41 ^ 2) + 13
-	local angle = math.deg(math.atan2(41, 42))
-	bar(group, Vector2.new(49, 29.5), angle, len)
-	bar(group, Vector2.new(49, 70.5), -angle, len)
-	c = {part = p, group = group}
+	local sg = new("SurfaceGui", {Face = Enum.NormalId.Top, AlwaysOnTop = true, LightInfluence = 0, CanvasSize = Vector2.new(100, 100), Enabled = false}, p)
+	-- punta en (68, 50), colas en (32, 12) y (32, 88)
+	local len = math.sqrt(36 ^ 2 + 38 ^ 2) + 14
+	local angle = math.deg(math.atan2(38, 36))
+	c = {part = p, gui = sg, bars = {bar(sg, Vector2.new(50, 31), angle, len), bar(sg, Vector2.new(50, 69), -angle, len)}}
 	chevrons[i] = c
 	return c
+end
+
+local function paint(c, color, alpha)
+	for _, b in c.bars do
+		b.BackgroundColor3 = color
+		b.BackgroundTransparency = 1 - alpha
+	end
 end
 
 -- El suelo bajo un punto (lo que se pisa: CanCollide) y su normal
@@ -157,44 +162,46 @@ local function hideTrail()
 	trailFolder.Parent = nil
 end
 
--- Cada frame: la banda de tus pies al destino, corriendo hacia allí
+-- Cada frame: la fila de chevrones de delante de ti al destino, corriendo hacia allí
 local function updateTrail(root, t)
 	local hum = root.Parent and root.Parent:FindFirstChildOfClass("Humanoid")
 	local feet = root.Position - Vector3.new(0, (hum and hum.HipHeight or 2) + root.Size.Y / 2 - 0.2, 0)
 	local goal = guide.floor + Vector3.new(0, 0.2, 0)
 	local flat = Vector3.new(goal.X - feet.X, 0, goal.Z - feet.Z)
-	if flat.Magnitude < 2 then
-		return hideTrail()
-	end
-	trailFolder.Parent = workspace
-	local len = (goal - feet).Magnitude
-	local frame = CFrame.lookAt(feet, goal)
-	local stop = math.min(len - 3, TRAIL_AHEAD)
-	local phase = (t * TRAIL_SPEED) % CHEVRON_GAP
-	local parts, cfs = {}, {}
 	local used = 0
-	for k = 0, math.huge do
-		local d = k * CHEVRON_GAP + phase - TRAIL_BACK
-		if d > stop then
-			break
+	if flat.Magnitude > TRAIL_START + 4 then
+		trailFolder.Parent = workspace
+		local len = (goal - feet).Magnitude
+		local frame = CFrame.lookAt(feet, goal)
+		local stop = math.min(len - 3.5, TRAIL_START + TRAIL_AHEAD)
+		local phase = (t * TRAIL_SPEED) % CHEVRON_GAP
+		local parts, cfs = {}, {}
+		for k = 0, math.huge do
+			local d = TRAIL_START + k * CHEVRON_GAP + phase
+			if d > stop then
+				break
+			end
+			used += 1
+			local c = chevronAt(used)
+			local fadeIn = math.clamp((d - TRAIL_START) / CHEVRON_GAP, 0, 1) -- (el que nace no aparece de golpe)
+			local fadeOut = math.clamp((stop - d) / 7, 0, 1)
+			local wave = math.max(0, math.sin((d - t * 30) / 8)) ^ 6
+			local color = trailColor(math.clamp((d - TRAIL_START) / TRAIL_AHEAD, 0, 1)):Lerp(WHITE, wave * 0.5)
+			paint(c, color, math.min(1, TRAIL_OPACITY + 0.15 * wave) * fadeIn * fadeOut)
+			c.gui.Enabled = true
+			table.insert(parts, c.part)
+			table.insert(cfs, frame * CFrame.new(0, 0, -d))
 		end
-		used += 1
-		local c = chevronAt(used)
-		local fadeIn = math.clamp((d + TRAIL_BACK) / CHEVRON_GAP, 0, 1) -- (el que nace no aparece de golpe)
-		local fadeOut = math.clamp((stop - d) / 8, 0, 1)
-		local wave = math.max(0, math.sin((d - t * 34) / 9)) ^ 6
-		c.group.GroupColor3 = trailColor(math.clamp(d / TRAIL_AHEAD, 0, 1)):Lerp(WHITE, wave * 0.55)
-		c.group.GroupTransparency = 1 - math.min(1, TRAIL_OPACITY + 0.25 * wave) * fadeIn * fadeOut
-		table.insert(parts, c.part)
-		table.insert(cfs, frame * CFrame.new(0, 0, -d))
+		if #parts > 0 then
+			workspace:BulkMoveTo(parts, cfs, Enum.BulkMoveMode.FireCFrameChanged)
+		end
 	end
-	if #parts > 0 then
-		workspace:BulkMoveTo(parts, cfs, Enum.BulkMoveMode.FireCFrameChanged)
-	end
+	-- los que sobran, apagados del todo (no basta con hacerlos transparentes: se quedarían donde estaban)
 	for i = used + 1, #chevrons do
-		chevrons[i].group.GroupTransparency = 1
+		chevrons[i].gui.Enabled = false
 	end
 end
+
 local edgeGui = new("ScreenGui", {Name = "MisionFlecha", ResetOnSpawn = false, IgnoreGuiInset = true, DisplayOrder = 3}, playerGui)
 local edge = new("Frame", {AnchorPoint = Vector2.new(0.5, 0.5), Size = UDim2.fromOffset(84, 84), BackgroundTransparency = 1, Visible = false}, edgeGui)
 local edgeDisc = round(new("Frame", {AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.fromScale(0.5, 0.5), Size = UDim2.fromOffset(56, 56), BackgroundColor3 = GO_COLOR}, edge), UDim.new(1, 0))
@@ -333,7 +340,7 @@ local function startFollow(q)
 	guide = {id = q.id, q = q, go = k.go, pos = pos, reach = reach, part = part, rings = rings, color = color, dist = "", t0 = os.clock()}
 	guide.floor = groundAt(pos)
 	for _, c in chevrons do
-		c.group.GroupTransparency = 1
+		c.gui.Enabled = false
 	end
 	edgeDisc.BackgroundColor3 = color
 	UI.setIcon(edgeIcon, k.icon)

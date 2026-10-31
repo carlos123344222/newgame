@@ -111,41 +111,70 @@ UI.homeButton.Activated:Connect(function()
 	end
 	Remote:FireServer("GoHome")
 end)
--- atajos: teletransporte a la Ruleta y a los lobbies del Tower Defense. La pantalla se oscurece, el servidor te
--- mueve (con humo donde estabas y donde llegas) y se aclara con el nombre del sitio.
+-- Atajos: teletransporte a la Ruleta y a los lobbies del Tower Defense, al instante (como My House). Los destinos los
+-- pone el servidor en Workspace (TP_<sitio>); el servidor solo añade la nube de humo de salida y de llegada.
+local TD = require(RS:WaitForChild("TowerDefense"))
 local TRAVEL = {
-	{order = 8, icon = "wheel", text = "Wheel", color = Color3.fromRGB(255, 80, 170), where = "wheel", arrive = "Wheel of Fright"},
-	{order = 10, icon = "skull", text = "Defense", color = Color3.fromRGB(226, 60, 84), where = "td", arrive = "Tower Defense"},
+	{order = 8, art = "wheelart", text = "Wheel", color = Color3.fromRGB(255, 80, 170), where = "wheel", arrive = "Wheel of Fright", icon = "wheel"},
+	{order = 10, portrait = TD.mapInfo("ZombieHollow") and TD.mapInfo("ZombieHollow").image, text = "Defense", color = Color3.fromRGB(226, 60, 84),
+		where = "td", arrive = "Tower Defense", icon = "swords"},
 }
-local traveling = false
+local lastTravel = 0
+local function travel(d)
+	if player:GetAttribute("Mode") then
+		return UI.toast("Leave first, then teleport", UI.RED)
+	end
+	local char = player.Character
+	local root = char and char:FindFirstChild("HumanoidRootPart")
+	local hum = char and char:FindFirstChildOfClass("Humanoid")
+	local to = workspace:GetAttribute("TP_" .. d.where)
+	if not (root and hum and hum.Health > 0 and typeof(to) == "CFrame") or os.clock() - lastTravel < 0.6 then
+		return
+	end
+	lastTravel = os.clock()
+	Remote:FireServer("GoTo", d.where, root.Position)
+	-- (con StreamingEnabled: que el suelo de allí esté cargado antes de aparecer; si ya lo está, no espera nada)
+	pcall(player.RequestStreamAroundAsync, player, to.Position, 1)
+	if not (root.Parent and hum.Health > 0) then
+		return
+	end
+	hum.Sit = false
+	char:PivotTo(to)
+	root.AssemblyLinearVelocity = Vector3.zero
+	UI.sound("Portal")
+	UI.flash(d.color, 0.35, 0.5)
+	UI.toast(d.arrive, d.color, d.icon)
+end
+
 for _, d in TRAVEL do
-	UI.menuButton(d.order, d.icon, d.text, d.color).Activated:Connect(function()
-		if traveling then
-			return
+	local b = UI.menuButton(d.order, d.art or "wheel", d.text, d.color)
+	if d.portrait then
+		-- retrato redondo del mapa (dentro del icono, para que crezca con él al pasar el ratón)
+		local ic = b:FindFirstChild("Icon")
+		if ic then
+			ic.ImageTransparency = 1
+			local ring = UI.new("Frame", {AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.fromScale(0.5, 0.5), Size = UDim2.fromScale(0.8, 0.8),
+				BackgroundColor3 = d.color:Lerp(UI.WHITE, 0.35), ZIndex = ic.ZIndex}, ic)
+			UI.new("UICorner", {CornerRadius = UDim.new(1, 0)}, ring)
+			UI.new("UIStroke", {Color = UI.INK, Thickness = 3, ApplyStrokeMode = Enum.ApplyStrokeMode.Border}, ring)
+			local photo = UI.new("ImageLabel", {AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.fromScale(0.5, 0.5), Size = UDim2.new(1, -7, 1, -7),
+				BackgroundTransparency = 1, Image = d.portrait, ScaleType = Enum.ScaleType.Crop, ZIndex = ic.ZIndex + 1}, ring)
+			UI.new("UICorner", {CornerRadius = UDim.new(1, 0)}, photo)
+			UI.icon("swords", {AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.fromScale(0.78, 0.8), Size = UDim2.fromScale(0.5, 0.5), ZIndex = ic.ZIndex + 2}, ring)
 		end
-		if player:GetAttribute("Mode") then
-			return UI.toast("Leave first, then teleport", UI.RED)
+	end
+	-- rayito en la esquina: es un teletransporte
+	local bolt = UI.icon("lightning", {Name = "Teleport", AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.new(1, -8, 0, 8), Size = UDim2.fromOffset(30, 30),
+		Rotation = 12, ZIndex = 6}, b)
+	task.spawn(function()
+		local t0 = os.clock() + d.order
+		while bolt.Parent do
+			bolt.Rotation = 12 + math.sin((os.clock() - t0) * 3) * 8
+			task.wait(1 / 30)
 		end
-		local root = player.Character and player.Character:FindFirstChild("HumanoidRootPart")
-		if not root then
-			return
-		end
-		traveling = true
-		UI.sound("Portal")
-		UI.fadeOut(0.22).Completed:Wait()
-		local from = root.Position
-		Remote:FireServer("GoTo", d.where)
-		local t0 = os.clock()
-		while os.clock() - t0 < 1 and root.Parent and (root.Position - from).Magnitude < 5 do
-			task.wait()
-		end
-		local moved = root.Parent and (root.Position - from).Magnitude >= 5
-		task.wait(0.12) -- (un instante para que cargue lo de alrededor)
-		UI.fadeIn(0.45)
-		if moved then
-			UI.toast(d.arrive, d.color, d.icon)
-		end
-		traveling = false
+	end)
+	b.Activated:Connect(function()
+		travel(d)
 	end)
 end
 UI.helpButton.Activated:Connect(function()

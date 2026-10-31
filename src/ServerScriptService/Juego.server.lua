@@ -1451,8 +1451,9 @@ function actions.GoHome(plr)
 	end
 end
 
--- Atajos del menú: a la Ruleta (delante del mostrador, mirándolo) o a la explanada de los lobbies del Tower Defense.
--- El cliente oscurece la pantalla antes de pedirlo; aquí sale una nube de humo donde estabas y otra donde llegas.
+-- Atajos del menú (teletransporte a la Ruleta y a la explanada de los lobbies del Tower Defense). Los destinos van en
+-- atributos de Workspace (TP_<sitio>) y el cliente se mueve él mismo, al instante (su personaje es suyo: la física la
+-- lleva él). Aquí solo sale la nube de humo donde estaba y donde llega, para que la vean todos.
 local travelAt = {}
 local function poofAt(pos)
 	local poof = Assets:FindFirstChild("Poof")
@@ -1468,35 +1469,26 @@ local function poofAt(pos)
 	soundAt("Poof", pos)
 	Debris:AddItem(a, 4)
 end
-function actions.GoTo(plr, where)
-	local char = plr.Character
-	local hum = char and char:FindFirstChildOfClass("Humanoid")
-	local root = char and char:FindFirstChild("HumanoidRootPart")
-	if not (state[plr] and hum and root and hum.Health > 0) or os.clock() < (travelAt[plr] or 0) then
+do
+	local booth = workspace.Mapa:FindFirstChild("Tiendas") and workspace.Mapa.Tiendas:FindFirstChild("Ruleta")
+	local counter = booth and booth:FindFirstChild("Mostrador", true)
+	if counter then
+		local stand = counter.CFrame * CFrame.new(0, 1.4, -8) -- (el mostrador mira hacia -Z: el frente)
+		workspace:SetAttribute("TP_wheel", CFrame.lookAt(stand.Position, Vector3.new(counter.Position.X, stand.Position.Y, counter.Position.Z)))
+	end
+	workspace:SetAttribute("TP_td", require(SSS.TDMaps).BACK)
+end
+function actions.GoTo(plr, where, from)
+	local root = plr.Character and plr.Character:FindFirstChild("HumanoidRootPart")
+	local to = typeof(where) == "string" and workspace:GetAttribute("TP_" .. where)
+	if not (root and typeof(to) == "CFrame") or plr:GetAttribute("Mode") or os.clock() < (travelAt[plr] or 0) then
 		return
 	end
-	if plr:GetAttribute("Mode") then
-		return Remote:FireClient(plr, "Info", "Leave first, then teleport")
+	travelAt[plr] = os.clock() + 0.5
+	-- (de dónde salió: lo dice el cliente, pero solo vale si está cerca de donde le ve el servidor)
+	if typeof(from) == "Vector3" and (from - root.Position).Magnitude < 40 then
+		poofAt(from)
 	end
-	local to
-	if where == "wheel" then
-		local booth = workspace.Mapa:FindFirstChild("Tiendas") and workspace.Mapa.Tiendas:FindFirstChild("Ruleta")
-		local counter = booth and booth:FindFirstChild("Mostrador", true)
-		if counter then
-			local stand = counter.CFrame * CFrame.new(0, 1.4, -8) -- (el mostrador mira hacia -Z: el frente)
-			to = CFrame.lookAt(stand.Position, Vector3.new(counter.Position.X, stand.Position.Y, counter.Position.Z))
-		end
-	elseif where == "td" then
-		to = require(SSS.TDMaps).BACK
-	end
-	if not to then
-		return
-	end
-	travelAt[plr] = os.clock() + 2
-	poofAt(root.Position)
-	hum.Sit = false
-	char:PivotTo(to)
-	root.AssemblyLinearVelocity = Vector3.zero
 	poofAt(to.Position)
 end
 Players.PlayerRemoving:Connect(function(plr)
