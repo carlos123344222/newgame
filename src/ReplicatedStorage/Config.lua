@@ -254,6 +254,9 @@ Config.LUCK_ADMINS = {[1718637537] = true} -- lebrowsent
 Config.LUCK_BOOSTS = {1, 10, 100}
 -- Siempre al nivel máximo (solo estos UserId): Juego les sube la experiencia al entrar
 Config.MAX_LEVEL_USERS = {} -- (vacío: lebrowsent empieza desde cero, 2026-10-29)
+-- Borrar la partida entera (nivel 1, sin monedas, gemas ni sustos, tutorial otra vez) y quitarlo de los tableros: una
+-- vez por etiqueta (se guarda en la partida). Para volver a borrarla, cambia la etiqueta.
+Config.WIPE_USERS = {[1718637537] = "2026-11-01"} -- lebrowsent
 
 -- Experiencia total para llegar al nivel lv desde el 1
 function Config.pxpTotal(lv)
@@ -302,7 +305,7 @@ end
 Config.BRAVE_BASE = 8 -- monedas por llegar al fondo de una casa ajena...
 Config.BRAVE_PER_FEAR = 0.08 -- ...más esto por cada punto de poder (miedo) de la casa
 Config.BRAVE_COOLDOWN = 180 -- la misma casa no vuelve a pagarte hasta pasados estos segundos
-Config.DAILY = {50, 75, 100, 150, 200, 275, 400} -- premio diario según los días seguidos (del 7º en adelante, el último)
+-- (el premio diario y los regalos por tiempo están en ReplicatedStorage.Recompensas)
 Config.OFFLINE_RATE = 0.04 -- monedas por minuto fuera = suma de "pay" de tus sustos colocados × esto
 Config.OFFLINE_MAX_H = 6 -- como mucho se cuentan estas horas fuera
 Config.AUTOSAVE = 120 -- segundos entre guardados automáticos

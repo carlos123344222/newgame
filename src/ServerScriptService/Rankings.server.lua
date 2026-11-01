@@ -1,12 +1,16 @@
 -- Rankings: los tableros de la plaza (Mapa.Plaza.Rankings: Top Scarers, Highest Level, Most Loved Houses y Endless
--- Legends) con los 8 mejores del mes (Highest Level: de siempre, nivel 1..100), y la Casa del día: el cartel del arco
+-- Legends) con los TOP mejores del mes (Highest Level: de siempre, nivel 1..100), y la Casa del día: el cartel del arco
 -- de la plaza y una corona sobre su tejado.
+-- Aquí solo se calculan las listas: cada tablero lleva los atributos BoardKind, BoardTitle, BoardIcon, BoardSub y Rows
+-- (JSON: {{i = userId, n = nombre, s = cifra}, ...}) y cada cliente los dibuja (RankingsUI.client: con desplazamiento,
+-- rueda del ratón o arrastrando, que en un SurfaceGui solo funciona si es del cliente).
 -- El tablero que en Studio tiene Kind = "XP" (antes "Most Experience") ahora es el de nivel ("Level").
 -- Datos: OrderedDataStore "R1_<tablero>_<mes>" ("R1_Level_All" para el de nivel: experiencia total, que ordena igual
 -- que el nivel) y "Perfiles1" (nombre y nivel), que escribe Juego al guardar. A eso se
 -- suman los jugadores del servidor con sus atributos M_* (lo de esta sesión aunque aún no se haya guardado; en Studio,
 -- solo eso). La Casa del día sale de los atributos TodayScared y TodayLikes de las casas de este servidor.
 local Players = game:GetService("Players")
+local HttpService = game:GetService("HttpService")
 local RS = game:GetService("ReplicatedStorage")
 local ServerStorage = game:GetService("ServerStorage")
 local DataStoreService = game:GetService("DataStoreService")
@@ -18,16 +22,7 @@ local plaza = workspace:WaitForChild("Mapa"):WaitForChild("Plaza")
 local boards = plaza:WaitForChild("Rankings")
 local Casas = workspace:WaitForChild("Casas")
 local REFRESH = 120 -- segundos entre lecturas de los DataStore
-local ROWS = 8
-
-local ICONS = "rbxassetid://114568727191863"
-local ICON_ORDER = {
-	coin = 1, gem = 2, house = 3, heart = 11, skull = 12, ghost = 14, trophy = 18, star = 20, crown = 28, thumb = 64,
-}
-local function iconRect(name)
-	local i = ICON_ORDER[name] or 18
-	return Vector2.new(((i - 1) % 8) * 128, ((i - 1) // 8) * 128)
-end
+local TOP = 50 -- jugadores que se ven en cada tablero (se desplaza para ver más allá de los primeros)
 
 -- Cada tablero: qué cuenta, su icono y cómo se escribe la cifra
 local KINDS = {
@@ -38,7 +33,6 @@ local KINDS = {
 }
 local ALIASES = {XP = "Level"} -- (Kind de los tableros ya puestos en Studio)
 local MONTHS = {"January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"}
-local RANK_COLORS = {Color3.fromRGB(255, 212, 60), Color3.fromRGB(214, 222, 236), Color3.fromRGB(230, 150, 90)}
 local WHITE, INK = Color3.new(1, 1, 1), Color3.fromRGB(16, 10, 22)
 
 local function fmt(n)
@@ -60,21 +54,9 @@ end
 local function outline(o, t, color)
 	return new("UIStroke", {Color = color or INK, Thickness = t or 2, LineJoinMode = Enum.LineJoinMode.Round, ApplyStrokeMode = Enum.ApplyStrokeMode.Contextual}, o)
 end
-local function corner(o, r)
-	new("UICorner", {CornerRadius = UDim.new(0, r)}, o)
-	return o
-end
-local function icon(name, props, parent)
-	props.BackgroundTransparency = 1
-	props.Image = ICONS
-	props.ImageRectOffset = iconRect(name)
-	props.ImageRectSize = Vector2.new(128, 128)
-	props.ScaleType = Enum.ScaleType.Fit
-	return new("ImageLabel", props, parent)
-end
 
----------- Interfaz de cada tablero (una vez) ----------
-local ui = {} -- [tablero] = {month, rows = {{frame, rank, face, name, stat}}, empty}
+---------- Tableros ----------
+local ui = {} -- [tablero] = {kind, rows (último JSON enviado)}
 for _, b in boards:GetChildren() do
 	local kindName = ALIASES[b:GetAttribute("Kind")] or b:GetAttribute("Kind")
 	local kind = KINDS[kindName]
@@ -82,68 +64,14 @@ for _, b in boards:GetChildren() do
 	if not (kind and panel) then
 		continue
 	end
-	local accent = b:GetAttribute("Accent") or WHITE
-	local old = panel:FindFirstChild("Lista")
+	local old = panel:FindFirstChild("Lista") -- (la interfaz que antes hacía el servidor)
 	if old then
 		old:Destroy()
 	end
-	local g = new("SurfaceGui", {
-		Name = "Lista", Face = Enum.NormalId.Front, SizingMode = Enum.SurfaceGuiSizingMode.PixelsPerStud, PixelsPerStud = 50, LightInfluence = 0,
-		Brightness = 1.15, MaxDistance = 140, ZOffset = 1,
-	}, panel)
-	-- oscurece un poco los tablones por detrás del texto
-	local shade = new("Frame", {Size = UDim2.fromScale(1, 1), BackgroundColor3 = Color3.new(0, 0, 0), BackgroundTransparency = 0.45, BorderSizePixel = 0}, g)
-	new("UIGradient", {Rotation = 90, Transparency = NumberSequence.new({
-		NumberSequenceKeypoint.new(0, 0.1), NumberSequenceKeypoint.new(0.25, 0.55), NumberSequenceKeypoint.new(1, 0.35),
-	})}, shade)
-	-- título entre dos iconos y el mes
-	local head = new("Frame", {Position = UDim2.fromOffset(0, 10), Size = UDim2.new(1, 0, 0, 58), BackgroundTransparency = 1}, g)
-	new("UIListLayout", {FillDirection = Enum.FillDirection.Horizontal, HorizontalAlignment = Enum.HorizontalAlignment.Center, VerticalAlignment = Enum.VerticalAlignment.Center, Padding = UDim.new(0, 8), SortOrder = Enum.SortOrder.LayoutOrder}, head)
-	icon(kind.icon, {Size = UDim2.fromOffset(46, 46), LayoutOrder = 1, ImageColor3 = kind.icon == "trophy" and WHITE or accent:Lerp(WHITE, 0.25)}, head)
-	local title = new("TextLabel", {
-		Size = UDim2.fromOffset(0, 58), AutomaticSize = Enum.AutomaticSize.X, BackgroundTransparency = 1, Font = Enum.Font.LuckiestGuy, TextSize = 38,
-		TextColor3 = WHITE, Text = kind.title or b:GetAttribute("Title") or "", LayoutOrder = 2,
-	}, head)
-	new("UIPadding", {PaddingTop = UDim.new(0, 6)}, title)
-	outline(title, 3.5)
-	new("UIGradient", {Rotation = 90, Color = ColorSequence.new(WHITE, accent:Lerp(WHITE, 0.55))}, title)
-	icon(kind.icon, {Size = UDim2.fromOffset(46, 46), LayoutOrder = 3, ImageColor3 = kind.icon == "trophy" and WHITE or accent:Lerp(WHITE, 0.25)}, head)
-	local month = new("TextLabel", {
-		Position = UDim2.fromOffset(0, 66), Size = UDim2.new(1, 0, 0, 30), BackgroundTransparency = 1, Font = Enum.Font.GothamBlack, TextSize = 24,
-		TextColor3 = WHITE, Text = "",
-	}, g)
-	outline(month, 2.5)
-	local list = new("Frame", {Position = UDim2.fromOffset(16, 106), Size = UDim2.new(1, -32, 1, -116), BackgroundTransparency = 1}, g)
-	new("UIListLayout", {Padding = UDim.new(0, 6), SortOrder = Enum.SortOrder.LayoutOrder}, list)
-	local rows = {}
-	for i = 1, ROWS do
-		local f = corner(new("Frame", {Size = UDim2.new(1, 0, 0, 56), BackgroundColor3 = Color3.new(0, 0, 0), BackgroundTransparency = 0.55, LayoutOrder = i, Visible = false}, list), 10)
-		local st = new("UIStroke", {Color = RANK_COLORS[i] or accent, Thickness = i <= 3 and 2 or 1, Transparency = i <= 3 and 0.1 or 0.7, ApplyStrokeMode = Enum.ApplyStrokeMode.Border}, f)
-		local face = corner(new("ImageLabel", {Position = UDim2.fromOffset(6, 4), Size = UDim2.fromOffset(48, 48), BackgroundColor3 = Color3.fromRGB(40, 34, 52), Image = ""}, f), 24)
-		new("UIStroke", {Color = RANK_COLORS[i] or accent, Thickness = 2, ApplyStrokeMode = Enum.ApplyStrokeMode.Border}, face)
-		local rank = new("TextLabel", {
-			Position = UDim2.fromOffset(62, 3), Size = UDim2.fromOffset(52, 30), BackgroundTransparency = 1, Font = Enum.Font.GothamBlack, TextSize = 26,
-			TextColor3 = RANK_COLORS[i] or WHITE, TextXAlignment = Enum.TextXAlignment.Left, Text = "#" .. i,
-		}, f)
-		outline(rank, 2.5)
-		local name = new("TextLabel", {
-			Position = UDim2.fromOffset(i >= 10 and 116 or 104, 3), Size = UDim2.new(1, -112, 0, 30), BackgroundTransparency = 1, Font = Enum.Font.GothamBlack,
-			TextSize = 23, TextColor3 = WHITE, TextXAlignment = Enum.TextXAlignment.Left, TextTruncate = Enum.TextTruncate.AtEnd, Text = "",
-		}, f)
-		outline(name, 2.5)
-		local stat = new("TextLabel", {
-			Position = UDim2.fromOffset(64, 31), Size = UDim2.new(1, -72, 0, 20), BackgroundTransparency = 1, Font = Enum.Font.GothamBold, TextSize = 16,
-			TextColor3 = Color3.fromRGB(226, 220, 236), TextXAlignment = Enum.TextXAlignment.Left, RichText = true, Text = "",
-		}, f)
-		outline(stat, 1.5)
-		rows[i] = {frame = f, face = face, name = name, stat = stat, stroke = st}
-	end
-	local empty = new("TextLabel", {
-		Position = UDim2.fromOffset(20, 130), Size = UDim2.new(1, -40, 0, 120), BackgroundTransparency = 1, Font = Enum.Font.GothamBlack, TextSize = 26,
-		TextColor3 = WHITE, TextWrapped = true, Text = kind.allTime and "Nobody yet...\nBe the first!" or "Nobody yet this month...\nBe the first!", Visible = false,
-	}, g)
-	outline(empty, 2.5)
-	ui[b] = {kind = kindName, month = month, rows = rows, empty = empty, accent = accent}
+	b:SetAttribute("BoardKind", kindName)
+	b:SetAttribute("BoardTitle", kind.title or b:GetAttribute("Title") or "")
+	b:SetAttribute("BoardIcon", kind.icon)
+	ui[b] = {kind = kindName}
 end
 
 ---------- Datos ----------
@@ -160,11 +88,21 @@ local function profile(id)
 	if plr then
 		n, lv = plr.Name, plr:FindFirstChild("leaderstats") and plr.leaderstats:FindFirstChild("Level") and plr.leaderstats.Level.Value
 	elseif okProfiles then
-		local ok, p = pcall(profiles.GetAsync, profiles, "u" .. id)
-		if ok and typeof(p) == "table" then
-			n, lv = p.n, p.lv
+		-- (con 4 tableros de TOP filas son muchas lecturas: si queda poco cupo de DataStore, se deja para luego y se
+		-- usa lo que ya se sabía; las partidas de los jugadores tienen prioridad)
+		if DataStoreService:GetRequestBudgetForRequestType(Enum.DataStoreRequestType.GetAsync) < 20 then
+			if c then
+				c.at = os.clock() - 540
+				return c
+			end
+			failed = true
+		else
+			local ok, p = pcall(profiles.GetAsync, profiles, "u" .. id)
+			if ok and typeof(p) == "table" then
+				n, lv = p.n, p.lv
+			end
+			failed = not ok
 		end
-		failed = not ok
 	end
 	if not n then
 		local ok, name = pcall(Players.GetNameFromUserIdAsync, Players, id)
@@ -180,7 +118,7 @@ local function sorted(kind, month, n)
 	local key = ("R1_%s_%s"):format(kind, month)
 	stores[key] = stores[key] or DataStoreService:GetOrderedDataStore(key)
 	local ok, page = pcall(function()
-		return stores[key]:GetSortedAsync(false, n or ROWS):GetCurrentPage()
+		return stores[key]:GetSortedAsync(false, n or TOP):GetCurrentPage()
 	end)
 	return ok and page or {}
 end
@@ -228,18 +166,18 @@ local function draw()
 		table.sort(list, function(a, c)
 			return a.v > c.v
 		end)
-		u.month.Text = KINDS[u.kind].allTime and "All time" or ("%s %d"):format(MONTHS[t.month], t.year)
-		u.empty.Visible = #list == 0
-		for i, row in u.rows do
+		local rows = {}
+		for i = 1, math.min(#list, TOP) do
 			local e = list[i]
-			row.frame.Visible = e ~= nil
-			if e then
-				local p = profile(e.id)
-				row.face.Image = ("rbxthumb://type=AvatarHeadShot&id=%d&w=150&h=150"):format(e.id)
-				row.name.Text = p.n
-				row.stat.Text = statText(u.kind, e.v, p.lv)
-			end
+			local p = profile(e.id)
+			rows[i] = {i = e.id, n = p.n, s = statText(u.kind, e.v, p.lv)}
 		end
+		local json = HttpService:JSONEncode(rows)
+		if json ~= u.rows then
+			u.rows = json
+			b:SetAttribute("Rows", json)
+		end
+		b:SetAttribute("BoardSub", KINDS[u.kind].allTime and "All time" or ("%s %d"):format(MONTHS[t.month], t.year))
 	end
 end
 
@@ -265,7 +203,7 @@ local function fetch()
 	local month = monthNow()
 	for kind, info in KINDS do
 		local values = {}
-		for _, e in sorted(kind, info.allTime and "All" or month) do
+		for _, e in sorted(kind, info.allTime and "All" or month, TOP) do
 			local id = tonumber(tostring(e.key):match("^u(%d+)$"))
 			if id then
 				values[id] = e.value

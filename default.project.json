@@ -70,6 +70,12 @@
         "MisionesUI": {
           "$path": "src/StarterPlayerScripts/MisionesUI.client.lua"
         },
+        "Recompensas": {
+          "$path": "src/StarterPlayerScripts/Recompensas.client.lua"
+        },
+        "RankingsUI": {
+          "$path": "src/StarterPlayerScripts/RankingsUI.client.lua"
+        },
         "BrujaFX": {
           "$path": "src/StarterPlayerScripts/BrujaFX.client.lua"
         },
@@ -162,6 +168,9 @@
       },
       "Misiones": {
         "$path": "src/ReplicatedStorage/Misiones.lua"
+      },
+      "Recompensas": {
+        "$path": "src/ReplicatedStorage/Recompensas.lua"
       }
     },
     "ServerScriptService": {

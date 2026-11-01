@@ -269,15 +269,6 @@ Remote.OnClientEvent:Connect(function(kind, ...)
 		else
 			UI.toast(("This house already paid you · again in %ds"):format(b), UI.ORANGE)
 		end
-	elseif kind == "Daily" then
-		whenPlaying(function()
-			UI.big("Daily reward!", ("Day %d streak  ·  +%d coins"):format(b, a), UI.GOLD, 3.5)
-			UI.sound("Win")
-			UI.sound("CoinTransfer")
-			UI.flash(Color3.fromRGB(255, 220, 120), 0.6, 0.8)
-			local vs = workspace.CurrentCamera.ViewportSize
-			UI.coinFly(Vector2.new(vs.X / 2, vs.Y * 0.45), 10)
-		end)
 	elseif kind == "Offline" then
 		-- ganancias mientras no estabas: la pantalla "Welcome back" (Eventos)
 		whenPlaying(function()

@@ -15,6 +15,7 @@ local RunService = game:GetService("RunService")
 local MarketplaceService = game:GetService("MarketplaceService")
 
 local Config = require(RS.Config)
+local Rewards = require(RS.Recompensas) -- premio de conexión y regalos por tiempo
 local Builder = require(SSS.HouseBuilder)
 local Behaviors = require(SSS.ScareBehaviors)
 local Outfits = require(RS.Outfits)
@@ -1982,6 +1983,159 @@ function actions.DailyBuy(plr, k)
 	Remote:FireClient(plr, "GotScare", deal.scare, new, "daily")
 end
 
+---------- Recompensas: premio de conexión diaria y regalos por tiempo jugado (datos: ReplicatedStorage.Recompensas) ----------
+-- Tiradas gratis ganadas en premios (st.spins): mientras quede alguna, FreeSpinAt = 0 y todos los clientes enseñan la
+-- tirada gratis como lista; la de cada 6 h (st.freeAt) se gasta antes que estas.
+local function syncFreeSpin(plr, st)
+	plr:SetAttribute("FreeSpinAt", st.spins > 0 and 0 or st.freeAt)
+	plr:SetAttribute("BonusSpins", st.spins)
+end
+
+-- Un susto al azar de esa categoría (de los de la tienda y la ruleta); los más fuertes salen menos
+local function randomScare(cat)
+	local list, total = {}, 0
+	for _, t in Config.ScareOrder do
+		local def = Config.Scares[t]
+		if def and def.cat == cat then
+			local w = Config.prizeOdds(t)
+			table.insert(list, {t, w})
+			total += w
+		end
+	end
+	local x = math.random() * total
+	for _, e in list do
+		x -= e[2]
+		if x <= 0 then
+			return e[1]
+		end
+	end
+	return list[#list] and list[#list][1]
+end
+
+-- Da un premio (sorteándolo si es un sorteo) y devuelve lo que ha tocado, para que el cliente lo enseñe:
+-- {kind, n, cat, scare, new}
+local function grantReward(plr, r)
+	local st = state[plr]
+	if r.pool then
+		r = Rewards.roll(r.pool)
+	end
+	local got = {kind = r.kind, n = r.n or 1, cat = r.cat}
+	if r.kind == "coins" then
+		plr.leaderstats.Coins.Value += got.n
+	elseif r.kind == "gems" then
+		addAttr(plr, "Gems", got.n)
+	elseif r.kind == "spin" then
+		st.spins += got.n
+		syncFreeSpin(plr, st)
+	elseif r.kind == "scare" then
+		local t = randomScare(r.cat)
+		if t then
+			got.scare, got.new = t, isNew(plr, t)
+			give(plr, t)
+			if Config.isJackpot(t) then
+				Remote:FireAllClients("Announce", plr.DisplayName, t, "gift")
+			end
+		end
+	end
+	return got
+end
+
+local function syncLogin(plr, st)
+	plr:SetAttribute("LoginDay", st.day)
+	plr:SetAttribute("LoginStreak", st.streak)
+end
+
+-- Reclama el premio de hoy: sigue la racha si ayer también reclamó, si no vuelve al día 1
+function actions.LoginClaim(plr)
+	local st = state[plr]
+	if not st or (st.claiming or 0) > os.clock() then
+		return
+	end
+	if st.tut < 4 then
+		return Remote:FireClient(plr, "Info", "Finish the tutorial first!")
+	end
+	local today = Rewards.today(os.time())
+	local can, streak, idx = Rewards.loginState(st.day, st.streak, today)
+	if not can then
+		return Remote:FireClient(plr, "Info", "Come back tomorrow for your next reward!")
+	end
+	st.claiming = os.clock() + 1
+	st.day, st.streak = today, streak
+	syncLogin(plr, st)
+	local got = grantReward(plr, Rewards.LOGIN[idx])
+	Remote:FireClient(plr, "LoginClaimed", idx, streak, got)
+end
+
+-- Regalos por tiempo: st.gifts = {day, t (segundos jugados ese día hasta st.giftFrom), claimed = {i, ...}}
+local function giftRoll(plr, st)
+	local now = os.time()
+	local today = Rewards.today(now)
+	local g = st.gifts
+	if g.day ~= today then
+		st.gifts = {day = today, t = 0, claimed = {}}
+		st.giftFrom = math.max(st.giftFrom, today * Rewards.DAY)
+		g = st.gifts
+	end
+	return g, g.t + (now - st.giftFrom)
+end
+
+local function syncGifts(plr, st)
+	local g, played = giftRoll(plr, st)
+	local list = {}
+	for _, i in g.claimed do
+		table.insert(list, tostring(i))
+	end
+	plr:SetAttribute("GiftDay", g.day)
+	plr:SetAttribute("GiftStart", os.time() - played) -- (el cliente: jugado = ahora - GiftStart)
+	plr:SetAttribute("GiftClaimed", table.concat(list, ","))
+end
+
+-- Lo jugado hasta ahora pasa a st.gifts.t (antes de guardar)
+local function giftBank(plr, st)
+	local g, played = giftRoll(plr, st)
+	g.t = played
+	st.giftFrom = os.time()
+end
+
+function actions.GiftClaim(plr, i)
+	local st = state[plr]
+	local gift = typeof(i) == "number" and Rewards.GIFTS[i]
+	if not st or not gift or (st.claiming or 0) > os.clock() then
+		return
+	end
+	if st.tut < 4 then
+		return Remote:FireClient(plr, "Info", "Finish the tutorial first!")
+	end
+	local g, played = giftRoll(plr, st)
+	if table.find(g.claimed, i) then
+		return
+	end
+	if played < gift.t then
+		return Remote:FireClient(plr, "Info", ("Ready in %s"):format(Rewards.clock(gift.t - played)))
+	end
+	st.claiming = os.clock() + 0.5
+	table.insert(g.claimed, i)
+	syncGifts(plr, st)
+	local list = {}
+	for _ = 1, gift.n or 1 do
+		table.insert(list, grantReward(plr, {pool = gift.pool}))
+	end
+	Remote:FireClient(plr, "GiftClaimed", i, list)
+end
+
+-- Al cambiar el día (00:00 UTC) los regalos de todos se reinician
+task.spawn(function()
+	while true do
+		task.wait(20)
+		local today = Rewards.today(os.time())
+		for plr, st in state do
+			if st.gifts and st.gifts.day ~= today and plr.Parent then
+				syncGifts(plr, st)
+			end
+		end
+	end
+end)
+
 -- Gira la ruleta i: cobra (o gasta la tirada gratis), elige casilla según los pesos del periodo actual (con el pity:
 -- tras pity-1 tiradas sin premio gordo, solo cuentan las casillas gordas) y da el susto. El cliente anima la ruleta
 -- hasta esa casilla; la ruleta gigante de la plaza gira para todos y los premios gordos se anuncian al servidor.
@@ -1994,11 +2148,14 @@ function actions.Spin(plr, i, free)
 	end
 	local now = workspace:GetServerTimeNow()
 	if free == true and i == Config.FREE_SPIN_WHEEL then
-		if now < st.freeAt then
+		if now >= st.freeAt then
+			st.freeAt = now + Config.FREE_SPIN_EVERY
+		elseif st.spins > 0 then
+			st.spins -= 1 -- (tirada gratis ganada en un premio: Recompensas)
+		else
 			return Remote:FireClient(plr, "Info", "Your free spin isn't ready yet")
 		end
-		st.freeAt = now + Config.FREE_SPIN_EVERY
-		plr:SetAttribute("FreeSpinAt", st.freeAt)
+		syncFreeSpin(plr, st)
 	else
 		local money = plr.leaderstats.Coins
 		if money.Value < wheel.price then
@@ -2298,6 +2455,25 @@ local function writeRanks(plr, st)
 	end
 end
 
+-- Quita a un jugador de todos los tableros de la plaza (el de nivel y los de cada mes desde octubre de 2026)
+local function removeFromRanks(userId)
+	local key = "u" .. userId
+	pcall(function()
+		rankStore("Level", LEVEL_BOARD):RemoveAsync(key)
+	end)
+	local t = os.date("!*t")
+	local y, m = 2026, 10
+	while y < t.year or (y == t.year and m <= t.month) do
+		local month = ("%04d-%02d"):format(y, m)
+		for kind in RANK_FIELDS do
+			pcall(function()
+				rankStore(kind, month):RemoveAsync(key)
+			end)
+		end
+		y, m = m == 12 and y + 1 or y, m % 12 + 1
+	end
+end
+
 -- release: suelta el bloqueo (sale del juego o viaja a otro servidor). Devuelve si se ha guardado
 function save(plr, release)
 	local st = state[plr]
@@ -2385,6 +2561,12 @@ function save(plr, release)
 		gems = plr:GetAttribute("Gems") or 0,
 		pity = st.pity, -- tiradas seguidas sin premio gordo, por ruleta
 		freeAt = st.freeAt, -- cuándo toca la siguiente tirada gratis (GetServerTimeNow)
+		spins = st.spins, -- tiradas gratis ganadas en premios (Recompensas)
+		gifts = (function() -- regalos por tiempo de hoy
+			giftBank(plr, st)
+			return st.gifts
+		end)(),
+		wipe = st.wipe, -- borrado ya hecho (Config.WIPE_USERS)
 		parts = (function()
 			local p = {}
 			for id in Config.Parts do
@@ -2546,7 +2728,18 @@ local function onPlayerAdded(plr)
 		plr:Kick("We couldn't load your save (Roblox servers are busy). Your progress is safe: please rejoin in a moment!")
 		return
 	end
-	data = data or {money = Config.START_MONEY, inv = table.clone(Config.StarterScares), placed = {}}
+	-- Borrado de partida (Config.WIPE_USERS): una sola vez por etiqueta; se queda solo con sus compras de Robux ya
+	-- entregadas (para que no se repitan) y lo quita de los tableros de la plaza
+	local wipeTag = Config.WIPE_USERS[plr.UserId]
+	local wiped = false
+	if wipeTag and data and data.wipe ~= wipeTag then
+		data = {money = Config.START_MONEY, inv = table.clone(Config.StarterScares), placed = {}, receipts = data.receipts, wipe = wipeTag}
+		wiped = true
+	end
+	data = data or {money = Config.START_MONEY, inv = table.clone(Config.StarterScares), placed = {}, wipe = wipeTag}
+	if wiped and not READ_ONLY then
+		task.spawn(removeFromRanks, plr.UserId)
+	end
 	data.inv = typeof(data.inv) == "table" and data.inv or {}
 	-- Skins compradas y la equipada en cada susto. Antes las skins eran sustos aparte: las que tenga en la mochila o
 	-- colocadas pasan a ser skins suyas (equipadas) y cada copia vuelve a ser su susto original, con sus estrellas
@@ -2617,7 +2810,19 @@ local function onPlayerAdded(plr)
 		counters = typeof(data.counters) == "table" and data.counters or {}, sent = {},
 		receipts = typeof(data.receipts) == "table" and data.receipts or {},
 		rbxScare = typeof(data.rbxScare) == "table" and data.rbxScare or {},
+		spins = typeof(data.spins) == "number" and math.max(0, math.floor(data.spins)) or 0, -- tiradas gratis de premios
+		gifts = {day = 0, t = 0, claimed = {}}, giftFrom = os.time(), -- regalos por tiempo (más abajo)
+		wipe = data.wipe,
 	}
+	local g = data.gifts
+	if typeof(g) == "table" and typeof(g.day) == "number" and typeof(g.t) == "number" and typeof(g.claimed) == "table" then
+		st.gifts = {day = g.day, t = math.max(0, g.t), claimed = {}}
+		for _, i in g.claimed do
+			if typeof(i) == "number" and Rewards.GIFTS[i] and not table.find(st.gifts.claimed, i) then
+				table.insert(st.gifts.claimed, i)
+			end
+		end
+	end
 	st.daily.bought = st.daily.bought or {}
 	for _, id in data.tags or {} do
 		if Config.TagById[id] and not table.find(st.tags, id) then
@@ -2677,7 +2882,7 @@ local function onPlayerAdded(plr)
 		st.pity[i] = data.pity and data.pity[i] or 0
 		plr:SetAttribute("Pity" .. i, st.pity[i])
 	end
-	plr:SetAttribute("FreeSpinAt", st.freeAt)
+	syncFreeSpin(plr, st)
 	for id in Config.Parts do
 		plr:SetAttribute("Part_" .. id, data.parts and data.parts[id] or 0)
 	end
@@ -2693,16 +2898,11 @@ local function onPlayerAdded(plr)
 	end
 	scaredStat.Value = st.scared
 	plr:SetAttribute("Tut", st.tut)
-	-- Quien ya terminó el tutorial: premio diario (con racha) y lo que soltaron los visitantes mientras no estaba
+	-- Premio de conexión (se reclama en su ventana: actions.LoginClaim) y regalos por tiempo
+	syncLogin(plr, st)
+	syncGifts(plr, st)
+	-- Quien ya terminó el tutorial: lo que soltaron los visitantes mientras no estaba
 	if st.tut >= 4 and not MATCH_SERVER then
-		local today = os.time() // 86400
-		if today > st.day then
-			st.streak = today == st.day + 1 and st.streak + 1 or 1
-			st.day = today
-			local prize = Config.DAILY[math.min(st.streak, #Config.DAILY)]
-			money.Value += prize
-			Remote:FireClient(plr, "Daily", prize, st.streak)
-		end
 		local away = data.t and math.min(os.time() - data.t, Config.OFFLINE_MAX_H * 3600) or 0
 		local pay = 0
 		for _, p in data.placed or {} do
