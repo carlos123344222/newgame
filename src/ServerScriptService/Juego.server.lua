@@ -1544,8 +1544,15 @@ end
 function actions.Place(plr, t, x, z, r)
 	local st = state[plr]
 	local h = st and st.house
-	if not h or plr:GetAttribute("Mode") ~= "home" or not Config.Scares[t] or (st.inv[t] or 0) < 1 then
+	if not h or not Config.Scares[t] then
 		return
+	end
+	-- (antes estos dos casos se ignoraban sin decir nada: el susto desaparecía de la mano y no salía)
+	if plr:GetAttribute("Mode") ~= "home" then
+		return Remote:FireClient(plr, "Info", "Go inside your house to place scares")
+	end
+	if (st.inv[t] or 0) < 1 then
+		return Remote:FireClient(plr, "Info", "You don't have any of those left")
 	end
 	if typeof(x) ~= "number" or typeof(z) ~= "number" or typeof(r) ~= "number" then
 		return

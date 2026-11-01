@@ -85,6 +85,19 @@ local function applyMode()
 		local h = myHouse()
 		if h then
 			Build.enter(h)
+		else
+			-- (la casa aún no ha llegado a este cliente: en cuanto llegue se entra en edición; antes se quedaba sin
+			-- edición toda la visita y no se podía colocar nada)
+			task.spawn(function()
+				local t0 = os.clock()
+				while mode == "home" and not Build.active and os.clock() - t0 < 15 do
+					task.wait(0.2)
+					local late = myHouse()
+					if late and mode == "home" and not Build.active then
+						Build.enter(late)
+					end
+				end
+			end)
 		end
 		refresh()
 	elseif new == nil then
@@ -94,6 +107,15 @@ local function applyMode()
 	end
 end
 player:GetAttributeChangedSignal("Mode"):Connect(applyMode)
+-- Si tu casa se rehace entera mientras estás dentro (otro modelo), la edición pasa al nuevo: si no, el rayo apuntaba
+-- a la casa vieja (ya borrada) y no se podía colocar nada hasta salir y volver a entrar
+Houses.ChildAdded:Connect(function(m)
+	if mode == "home" and m == myHouse() and Build.current() ~= m then
+		Build.exit()
+		Build.enter(m)
+		refresh()
+	end
+end)
 
 player.AttributeChanged:Connect(function(name)
 	if name ~= "Mode" and name ~= "Fear" then

@@ -415,6 +415,11 @@ function updateDrag(dt)
 	end
 end
 
+-- La casa en la que estás editando (nil si no)
+function Build.current()
+	return house
+end
+
 function Build.enter(model)
 	house = model
 	Build.active = true

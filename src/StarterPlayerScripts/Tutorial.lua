@@ -26,6 +26,7 @@ local Dialogo = require(script.Parent:WaitForChild("Dialogo"))
 local Monedas = require(script.Parent:WaitForChild("Monedas"))
 local Portales = require(script.Parent:WaitForChild("Portales"))
 local Rastro = require(script.Parent:WaitForChild("Rastro"))
+local Build = require(script.Parent:WaitForChild("Build"))
 local player = Players.LocalPlayer
 local Houses = workspace:WaitForChild("Casas")
 
@@ -455,26 +456,35 @@ local function scareDemo(h)
 		local look = (origin * CFrame.new(sx * 0.4, 2.5, -(sz * 0.5))).Position
 		local cam = workspace.CurrentCamera
 		local saved = cam.CFrame
+		-- si estabas arrastrando otro susto, se suelta (sin colocarlo): durante la escena no se puede tocar nada
+		Build.cancel()
 		UI.lockMovement(true)
 		Monedas.paused = true -- que se queden en el suelo: si caen a tu lado las recogerías sin verlas
 		blocker.Visible = true
 		UIS.MouseIconEnabled = false
-		local bar = UI.buildBar.Visible
 		UI.buildBar.Visible = false
 		cam.CameraType = Enum.CameraType.Scriptable
-		TweenService:Create(cam, TweenInfo.new(0.9, Enum.EasingStyle.Quad), {CFrame = CFrame.lookAt(camPos, look)}):Play()
-		local t1 = os.clock()
-		while newCoins() == 0 and bot.Parent and os.clock() - t1 < 16 do
-			task.wait(0.1)
+		-- (todo lo de la escena va protegido: pase lo que pase, al final se devuelve el control. Antes, si algo fallaba
+		-- o salías de casa a mitad, se quedaba la pantalla bloqueada, sin barra de sustos y sin ratón: no se podía
+		-- colocar nada más)
+		local ok, err = pcall(function()
+			TweenService:Create(cam, TweenInfo.new(0.9, Enum.EasingStyle.Quad), {CFrame = CFrame.lookAt(camPos, look)}):Play()
+			local t1 = os.clock()
+			while newCoins() == 0 and bot.Parent and os.clock() - t1 < 16 and player:GetAttribute("Mode") == "home" do
+				task.wait(0.1)
+			end
+			if newCoins() > 0 then
+				task.wait(1.8) -- deja ver cómo saltan y caen las monedas
+			end
+			-- vuelve a donde estaba la cámara
+			TweenService:Create(cam, TweenInfo.new(0.6, Enum.EasingStyle.Quad), {CFrame = saved}):Play()
+			task.wait(0.6)
+		end)
+		if not ok then
+			warn("Tutorial: " .. tostring(err))
 		end
-		if newCoins() > 0 then
-			task.wait(1.8) -- deja ver cómo saltan y caen las monedas
-		end
-		-- vuelve a donde estaba la cámara
-		TweenService:Create(cam, TweenInfo.new(0.6, Enum.EasingStyle.Quad), {CFrame = saved}):Play()
-		task.wait(0.6)
 		cam.CameraType = Enum.CameraType.Custom
-		UI.buildBar.Visible = bar and player:GetAttribute("Mode") == "home"
+		UI.buildBar.Visible = player:GetAttribute("Mode") == "home" and Build.active
 		blocker.Visible = false
 		UIS.MouseIconEnabled = true
 		Monedas.paused = false
@@ -564,7 +574,11 @@ local function check()
 		busy = true
 		if (player:GetAttribute("Placed") or 0) == 0 then
 			task.wait(0.6)
-			dragDemo(h)
+			local ok, err = pcall(dragDemo, h)
+			if not ok then
+				hand.Visible, card.Visible = false, false
+				warn("Tutorial: " .. tostring(err))
+			end
 		end
 		if (player:GetAttribute("Placed") or 0) > 0 then
 			setStep(3)
@@ -573,7 +587,12 @@ local function check()
 	end
 	if step == 3 then
 		busy = true
-		scareDemo(h)
+		local ok, err = pcall(scareDemo, h)
+		if not ok then
+			warn("Tutorial: " .. tostring(err))
+			Rastro.stop("tutorial")
+			setStep(4) -- (que no se repita en bucle: el tutorial se da por acabado)
+		end
 		busy = false
 	end
 end
