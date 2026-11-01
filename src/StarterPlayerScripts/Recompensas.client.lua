@@ -977,14 +977,15 @@ for _, attr in {"LoginDay", "LoginStreak", "GiftDay", "GiftStart", "GiftClaimed"
 end
 
 -- se cierran al ir de visita o al Tower Defense
-local function autoClose()
-	if anyOpen() and (player:GetAttribute("Mode") == "visit" or player:GetAttribute("TDCash") ~= nil) then
+-- se cierran al empezar una visita (en la casa ajena tienes que ver tu miedo). En el Tower Defense sí se pueden abrir:
+-- antes también se cerraban con cada cambio de TDCash (el dinero de la partida, que cambia todo el rato), así que allí
+-- se cerraban nada más abrirlas
+player:GetAttributeChangedSignal("Mode"):Connect(function()
+	if anyOpen() and player:GetAttribute("Mode") == "visit" then
 		show(daily, false)
 		show(gifts, false)
 	end
-end
-player:GetAttributeChangedSignal("Mode"):Connect(autoClose)
-player:GetAttributeChangedSignal("TDCash"):Connect(autoClose)
+end)
 
 ---------- Respuestas del servidor ----------
 Remote.OnClientEvent:Connect(function(kind, a, b, c)
