@@ -2202,6 +2202,76 @@ local function rankStore(kind, month)
 	return rankStores[key]
 end
 local okProfiles, profiles = pcall(DataStoreService.GetDataStore, DataStoreService, "Perfiles1") -- {n, d, lv} para los tableros
+local LEVEL_BOARD = "All" -- el tablero de nivel no se reinicia cada mes: OrderedDataStore "R1_Level_All"
+
+-- Una sola vez: mete en el tablero de nivel a todos los que ya habían jugado (antes solo existía "Most Experience",
+-- del mes). Recorre las partidas guardadas (TuCasaEncantada2) y apunta su experiencia (pxp). Lo hace un único servidor
+-- (lo reserva en "Migraciones1"); si se corta, otro lo retoma pasados 15 min. Nunca baja un valor ya apuntado.
+local function backfillLevelBoard()
+	if READ_ONLY or not store then
+		return
+	end
+	local okM, migrations = pcall(DataStoreService.GetDataStore, DataStoreService, "Migraciones1")
+	if not okM then
+		return
+	end
+	local claimed = false
+	local ok = pcall(migrations.UpdateAsync, migrations, "LevelBoard", function(old)
+		if typeof(old) == "table" and (old.done or (old.job ~= game.JobId and os.time() - (old.at or 0) < 900)) then
+			return nil
+		end
+		claimed = true
+		return {job = game.JobId, at = os.time()}
+	end)
+	if not (ok and claimed) then
+		return
+	end
+	local board = rankStore("Level", LEVEL_BOARD)
+	local function budget(kind)
+		while DataStoreService:GetRequestBudgetForRequestType(kind) < 5 do
+			task.wait(1)
+		end
+	end
+	local okList, pages = pcall(store.ListKeysAsync, store)
+	if not okList then
+		warn("Tablero de nivel: no se pudieron listar las partidas: " .. tostring(pages))
+		return
+	end
+	local n, lastBeat = 0, os.clock()
+	while true do
+		for _, info in pages:GetCurrentPage() do
+			local id = info.KeyName:match("^u(%d+)$")
+			if id then
+				budget(Enum.DataStoreRequestType.GetAsync)
+				local okGet, data = pcall(store.GetAsync, store, info.KeyName)
+				local pxp = okGet and typeof(data) == "table" and typeof(data.pxp) == "number" and math.floor(data.pxp) or 0
+				if pxp > 0 then
+					budget(Enum.DataStoreRequestType.UpdateAsync)
+					if pcall(board.UpdateAsync, board, info.KeyName, function(old)
+						return (old or 0) < pxp and pxp or nil
+					end) then
+						n += 1
+					end
+				end
+			end
+			if os.clock() - lastBeat > 300 then -- sigue vivo: que nadie más lo empiece
+				lastBeat = os.clock()
+				pcall(migrations.SetAsync, migrations, "LevelBoard", {job = game.JobId, at = os.time()})
+			end
+		end
+		if pages.IsFinished then
+			break
+		end
+		budget(Enum.DataStoreRequestType.GetAsync)
+		if not pcall(pages.AdvanceToNextPageAsync, pages) then
+			warn("Tablero de nivel: se cortó el recorrido; otro servidor lo retomará")
+			return
+		end
+	end
+	pcall(migrations.SetAsync, migrations, "LevelBoard", {done = true, at = os.time(), players = n})
+	print(("Tablero de nivel: %d jugadores anteriores apuntados"):format(n))
+end
+task.spawn(backfillLevelBoard)
 local RANK_FIELDS = {Scared = "mScared", XP = "mXP", Likes = "mLikes", Endless = "mEndless"}
 local function writeRanks(plr, st)
 	local c = counters(st)
@@ -2213,6 +2283,14 @@ local function writeRanks(plr, st)
 		end) then
 			st.sent[k] = v
 		end
+	end
+	-- Tablero "Highest Level" (de siempre, no del mes): se ordena por la experiencia total, que da el mismo orden que el
+	-- nivel y desempata entre los del mismo nivel (también entre los de nivel 100)
+	local pxp = math.floor(plr:GetAttribute("PXP") or 0)
+	if pxp > 0 and st.sent.pxp ~= pxp and pcall(function()
+		rankStore("Level", LEVEL_BOARD):SetAsync("u" .. plr.UserId, pxp)
+	end) then
+		st.sent.pxp = pxp
 	end
 	local lv = Config.playerLevel(plr)
 	if okProfiles and st.sent.lv ~= lv and pcall(profiles.SetAsync, profiles, "u" .. plr.UserId, {n = plr.Name, d = plr.DisplayName, lv = lv}) then

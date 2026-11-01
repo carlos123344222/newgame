@@ -1,6 +1,9 @@
--- Rankings: los tableros de la plaza (Mapa.Plaza.Rankings: Top Scarers, Most Experience, Most Loved Houses y Endless
--- Legends) con los 8 mejores del mes, y la Casa del día: el cartel del arco de la plaza y una corona sobre su tejado.
--- Datos: OrderedDataStore "R1_<tablero>_<mes>" y "Perfiles1" (nombre y nivel), que escribe Juego al guardar. A eso se
+-- Rankings: los tableros de la plaza (Mapa.Plaza.Rankings: Top Scarers, Highest Level, Most Loved Houses y Endless
+-- Legends) con los 8 mejores del mes (Highest Level: de siempre, nivel 1..100), y la Casa del día: el cartel del arco
+-- de la plaza y una corona sobre su tejado.
+-- El tablero que en Studio tiene Kind = "XP" (antes "Most Experience") ahora es el de nivel ("Level").
+-- Datos: OrderedDataStore "R1_<tablero>_<mes>" ("R1_Level_All" para el de nivel: experiencia total, que ordena igual
+-- que el nivel) y "Perfiles1" (nombre y nivel), que escribe Juego al guardar. A eso se
 -- suman los jugadores del servidor con sus atributos M_* (lo de esta sesión aunque aún no se haya guardado; en Studio,
 -- solo eso). La Casa del día sale de los atributos TodayScared y TodayLikes de las casas de este servidor.
 local Players = game:GetService("Players")
@@ -10,6 +13,7 @@ local DataStoreService = game:GetService("DataStoreService")
 local CollectionService = game:GetService("CollectionService")
 
 local TD = require(RS.TowerDefense)
+local Config = require(RS.Config)
 local plaza = workspace:WaitForChild("Mapa"):WaitForChild("Plaza")
 local boards = plaza:WaitForChild("Rankings")
 local Casas = workspace:WaitForChild("Casas")
@@ -28,10 +32,11 @@ end
 -- Cada tablero: qué cuenta, su icono y cómo se escribe la cifra
 local KINDS = {
 	Scared = {attr = "M_Scared", icon = "trophy", stat = "Scared"},
-	XP = {attr = "M_XP", icon = "star", stat = "Exp"},
+	Level = {attr = "PXP", icon = "star", stat = "Level", title = "Highest Level", allTime = true},
 	Likes = {attr = "M_Likes", icon = "thumb", stat = "Likes"},
 	Endless = {attr = "M_Endless", icon = "skull", stat = "Wave"},
 }
+local ALIASES = {XP = "Level"} -- (Kind de los tableros ya puestos en Studio)
 local MONTHS = {"January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"}
 local RANK_COLORS = {Color3.fromRGB(255, 212, 60), Color3.fromRGB(214, 222, 236), Color3.fromRGB(230, 150, 90)}
 local WHITE, INK = Color3.new(1, 1, 1), Color3.fromRGB(16, 10, 22)
@@ -71,7 +76,8 @@ end
 ---------- Interfaz de cada tablero (una vez) ----------
 local ui = {} -- [tablero] = {month, rows = {{frame, rank, face, name, stat}}, empty}
 for _, b in boards:GetChildren() do
-	local kind = KINDS[b:GetAttribute("Kind")]
+	local kindName = ALIASES[b:GetAttribute("Kind")] or b:GetAttribute("Kind")
+	local kind = KINDS[kindName]
 	local panel = b:FindFirstChild("Panel")
 	if not (kind and panel) then
 		continue
@@ -96,7 +102,7 @@ for _, b in boards:GetChildren() do
 	icon(kind.icon, {Size = UDim2.fromOffset(46, 46), LayoutOrder = 1, ImageColor3 = kind.icon == "trophy" and WHITE or accent:Lerp(WHITE, 0.25)}, head)
 	local title = new("TextLabel", {
 		Size = UDim2.fromOffset(0, 58), AutomaticSize = Enum.AutomaticSize.X, BackgroundTransparency = 1, Font = Enum.Font.LuckiestGuy, TextSize = 38,
-		TextColor3 = WHITE, Text = b:GetAttribute("Title") or "", LayoutOrder = 2,
+		TextColor3 = WHITE, Text = kind.title or b:GetAttribute("Title") or "", LayoutOrder = 2,
 	}, head)
 	new("UIPadding", {PaddingTop = UDim.new(0, 6)}, title)
 	outline(title, 3.5)
@@ -134,10 +140,10 @@ for _, b in boards:GetChildren() do
 	end
 	local empty = new("TextLabel", {
 		Position = UDim2.fromOffset(20, 130), Size = UDim2.new(1, -40, 0, 120), BackgroundTransparency = 1, Font = Enum.Font.GothamBlack, TextSize = 26,
-		TextColor3 = WHITE, TextWrapped = true, Text = "Nobody yet this month...\nBe the first!", Visible = false,
+		TextColor3 = WHITE, TextWrapped = true, Text = kind.allTime and "Nobody yet...\nBe the first!" or "Nobody yet this month...\nBe the first!", Visible = false,
 	}, g)
 	outline(empty, 2.5)
-	ui[b] = {kind = b:GetAttribute("Kind"), month = month, rows = rows, empty = empty, accent = accent}
+	ui[b] = {kind = kindName, month = month, rows = rows, empty = empty, accent = accent}
 end
 
 ---------- Datos ----------
@@ -187,6 +193,13 @@ local function statText(kind, v, lv)
 		local info = TD.MAPS[v % 100]
 		return ("<b>Wave %d</b>   %s"):format(v // 100, info and info.name or "")
 	end
+	if kind == "Level" then
+		local level, into, need = Config.playerLevelOf(v)
+		if need == 0 then
+			return ("<b>Level %d</b>   MAX"):format(level)
+		end
+		return ("<b>Level %d</b>   %d%% to next"):format(level, math.floor(into / need * 100))
+	end
 	return ("%s: <b>%s</b>    Level: <b>%d</b>"):format(KINDS[kind].stat, fmt(v), lv)
 end
 
@@ -210,7 +223,7 @@ local function draw()
 		table.sort(list, function(a, c)
 			return a.v > c.v
 		end)
-		u.month.Text = ("%s %d"):format(MONTHS[t.month], t.year)
+		u.month.Text = KINDS[u.kind].allTime and "All time" or ("%s %d"):format(MONTHS[t.month], t.year)
 		u.empty.Visible = #list == 0
 		for i, row in u.rows do
 			local e = list[i]
@@ -227,9 +240,9 @@ end
 
 local function fetch()
 	local month = monthNow()
-	for kind in KINDS do
+	for kind, info in KINDS do
 		local values = {}
-		for _, e in sorted(kind, month) do
+		for _, e in sorted(kind, info.allTime and "All" or month) do
 			local id = tonumber(tostring(e.key):match("^u(%d+)$"))
 			if id then
 				values[id] = e.value
