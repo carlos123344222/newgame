@@ -156,6 +156,7 @@ local function profile(id)
 	end
 	local plr = Players:GetPlayerByUserId(id)
 	local n, lv
+	local failed = false
 	if plr then
 		n, lv = plr.Name, plr:FindFirstChild("leaderstats") and plr.leaderstats:FindFirstChild("Level") and plr.leaderstats.Level.Value
 	elseif okProfiles then
@@ -163,22 +164,23 @@ local function profile(id)
 		if ok and typeof(p) == "table" then
 			n, lv = p.n, p.lv
 		end
+		failed = not ok
 	end
 	if not n then
 		local ok, name = pcall(Players.GetNameFromUserIdAsync, Players, id)
 		n = ok and name or ("Player " .. id)
 	end
-	c = {n = n, lv = lv or 1, at = os.clock()}
+	c = {n = n, lv = lv or 1, at = os.clock() - (failed and 540 or 0)} -- (si falló la lectura, se reintenta en 1 min)
 	profileCache[id] = c
 	return c
 end
 
 local stores = {}
-local function sorted(kind, month)
+local function sorted(kind, month, n)
 	local key = ("R1_%s_%s"):format(kind, month)
 	stores[key] = stores[key] or DataStoreService:GetOrderedDataStore(key)
 	local ok, page = pcall(function()
-		return stores[key]:GetSortedAsync(false, ROWS):GetCurrentPage()
+		return stores[key]:GetSortedAsync(false, n or ROWS):GetCurrentPage()
 	end)
 	return ok and page or {}
 end
@@ -197,6 +199,9 @@ local function statText(kind, v, lv)
 		local level, into, need = Config.playerLevelOf(v)
 		if need == 0 then
 			return ("<b>Level %d</b>   MAX"):format(level)
+		end
+		if into == 0 then
+			return ("<b>Level %d</b>"):format(level) -- (sacado de su perfil: no se sabe cuánto lleva del siguiente)
 		end
 		return ("<b>Level %d</b>   %d%% to next"):format(level, math.floor(into / need * 100))
 	end
@@ -238,6 +243,24 @@ local function draw()
 	end
 end
 
+-- Los que salían en el antiguo "Most Experience" (de octubre de 2026 en adelante) y aún no están en el tablero de nivel
+-- (la migración de Juego todavía no ha llegado a ellos, o es Studio, donde no se escribe nada): se meten con el nivel de
+-- su perfil ("Perfiles1"), como si tuvieran justo la experiencia de ese nivel.
+local XP_SINCE = {year = 2026, month = 10}
+local function oldPlayers(values)
+	local t = os.date("!*t")
+	local y, m = XP_SINCE.year, XP_SINCE.month
+	while y < t.year or (y == t.year and m <= t.month) do
+		for _, e in sorted("XP", ("%04d-%02d"):format(y, m), 30) do
+			local id = tonumber(tostring(e.key):match("^u(%d+)$"))
+			if id and not values[id] then
+				values[id] = math.max(1, Config.pxpTotal(profile(id).lv))
+			end
+		end
+		y, m = m == 12 and y + 1 or y, m % 12 + 1
+	end
+end
+
 local function fetch()
 	local month = monthNow()
 	for kind, info in KINDS do
@@ -247,6 +270,9 @@ local function fetch()
 			if id then
 				values[id] = e.value
 			end
+		end
+		if kind == "Level" then
+			oldPlayers(values)
 		end
 		cache[kind] = values
 	end
