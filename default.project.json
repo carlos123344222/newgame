@@ -76,6 +76,9 @@
         "RankingsUI": {
           "$path": "src/StarterPlayerScripts/RankingsUI.client.lua"
         },
+        "Rastro": {
+          "$path": "src/StarterPlayerScripts/Rastro.lua"
+        },
         "BrujaFX": {
           "$path": "src/StarterPlayerScripts/BrujaFX.client.lua"
         },

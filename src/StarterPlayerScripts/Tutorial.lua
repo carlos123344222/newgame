@@ -5,6 +5,8 @@
 -- doradas señalan las monedas hasta que las recoges y al final la mano señala el botón Shop.
 -- Progreso guardado en el servidor (atributo Tut, dato "tut3"):
 -- 0 nuevo · 1 ya habló fuera · 2 ya entró (falta colocar) · 3 colocado (falta ver el susto y recoger) · 4 terminado.
+-- Flechas (módulo Rastro, las mismas que FOLLOW de las misiones): de la calle a tu portal mientras no hayas entrado
+-- (y si sales de casa antes de acabar) y, cuando caen las primeras monedas, a la moneda más cercana.
 -- Después el alcalde se queda en tu jardín: te sigue con la mirada, saluda, "Talk" da consejos y Help te vuelve a
 -- señalar el portal.
 local Players = game:GetService("Players")
@@ -23,6 +25,7 @@ local Calabaza = require(script.Parent:WaitForChild("Calabaza"))
 local Dialogo = require(script.Parent:WaitForChild("Dialogo"))
 local Monedas = require(script.Parent:WaitForChild("Monedas"))
 local Portales = require(script.Parent:WaitForChild("Portales"))
+local Rastro = require(script.Parent:WaitForChild("Rastro"))
 local player = Players.LocalPlayer
 local Houses = workspace:WaitForChild("Casas")
 
@@ -178,6 +181,29 @@ RunService.RenderStepped:Connect(function(dt)
 	npc.root = npc.root:Lerp(goal, math.min(1, dt * 4))
 	npc:update(dt)
 end)
+
+---------- Flechas del suelo hasta tu portal ----------
+local function portalPos()
+	local h = myHouse()
+	local mark = h and h:FindFirstChild("DoorMark", true)
+	if mark and mark:IsA("BasePart") then
+		return mark.Position
+	end
+	local origin = h and h:GetAttribute("Origin")
+	return origin and Config.frontOf(origin).Position
+end
+
+local function guideHome()
+	if Rastro.owner() == "tutorial" or not portalPos() then
+		return
+	end
+	Rastro.start({
+		owner = "tutorial", getPos = portalPos, reach = -1, color = UI.ORANGE, icon = "house",
+		done = function()
+			return player:GetAttribute("Mode") == "home"
+		end,
+	})
+end
 
 ---------- Flecha sobre tu portal ----------
 local function showArrow(on)
@@ -469,6 +495,25 @@ local function scareDemo(h)
 	end
 	local folder = h:FindFirstChild("Coins")
 	local conn = folder and folder.ChildAdded:Connect(markCoin)
+	-- y las flechas del suelo hasta la moneda más cercana
+	Rastro.start({
+		owner = "tutorial", reach = -1, color = UI.GOLD, icon = "coin",
+		getPos = function()
+			local root = player.Character and player.Character:FindFirstChild("HumanoidRootPart")
+			local best, bd
+			for _, c in coinsOf(h) do
+				local p = c:IsA("BasePart") and c.Position or c:IsA("Model") and c:GetPivot().Position
+				local d = p and root and (p - root.Position).Magnitude
+				if d and (not bd or d < bd) then
+					best, bd = p, d
+				end
+			end
+			return best
+		end,
+		done = function()
+			return Monedas.total ~= before
+		end,
+	})
 	local t2 = os.clock()
 	while Monedas.total == before and os.clock() - t2 < 120 and h.Parent and #coinsOf(h) > 0 do
 		task.wait(0.2)
@@ -476,6 +521,7 @@ local function scareDemo(h)
 	if conn then
 		conn:Disconnect()
 	end
+	Rastro.stop("tutorial")
 	task.wait(1) -- que dé tiempo a recoger el resto
 	for _, c in coinsOf(h) do
 		local a = c:FindFirstChild("TutorialArrow")
@@ -490,14 +536,24 @@ end
 
 ---------- Pasos ----------
 local function check()
-	if busy or not player:GetAttribute("Plot") then
+	if not player:GetAttribute("Plot") then
 		return
 	end
 	local h = myHouse()
 	if not h then
 		return
 	end
-	local home = player:GetAttribute("Mode") == "home"
+	local mode = player:GetAttribute("Mode")
+	local home = mode == "home"
+	-- sin acabar el tutorial y fuera de casa (en la calle): flechas hasta tu portal
+	if step >= 1 and step < 4 and mode == nil then
+		guideHome()
+	elseif home and Rastro.owner() == "tutorial" and step < 3 then
+		Rastro.stop("tutorial")
+	end
+	if busy then
+		return
+	end
 	if step == 1 then
 		showArrow(not home)
 		if home then
@@ -564,6 +620,7 @@ function Tutorial.help()
 	if myHouse() and player:GetAttribute("Mode") == nil then
 		talk(LINES.follow, true)
 		showArrow(true)
+		guideHome()
 		task.delay(8, function()
 			if step ~= 1 then
 				showArrow(false)

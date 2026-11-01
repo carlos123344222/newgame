@@ -4,7 +4,7 @@ Juego de Roblox. Los scripts se sincronizan con Roblox Studio mediante [Rojo](ht
 
 ## Qué controla Rojo
 
-Solo los **84 scripts** de `src/`. Todo lo demás (mapas, modelos, `Assets`, interfaz, sonidos...) sigue
+Solo los **85 scripts** de `src/`. Todo lo demás (mapas, modelos, `Assets`, interfaz, sonidos...) sigue
 viviendo en el archivo de Studio y Rojo no lo toca (`$ignoreUnknownInstances` en todos los servicios).
 
 | Carpeta | En Studio |
@@ -27,7 +27,7 @@ Extensiones: `.server.lua` = Script, `.client.lua` = LocalScript, `.lua` = Modul
 2. `rojo serve` (en esta carpeta)
 3. En Studio, con **este** juego abierto: Plugins → Rojo → **Connect**.
 
-Importante: con Rojo conectado, los cambios a esos 84 scripts se hacen en los archivos de `src/`. Si los
+Importante: con Rojo conectado, los cambios a esos 85 scripts se hacen en los archivos de `src/`. Si los
 editas a mano en Studio, se pierden en la siguiente sincronización.
 
 `roblox copia.rbxl` es una copia del juego completo (del 31/10/2026), por si hace falta recuperar algo.
