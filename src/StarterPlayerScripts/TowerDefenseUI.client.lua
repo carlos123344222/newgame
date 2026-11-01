@@ -743,6 +743,9 @@ local function at(pos)
 	return a
 end
 
+-- Hasta dónde se ven los ataques de las tropas (solo es lo que se dibuja: el daño lo hace el servidor siempre, estés
+-- donde estés). Antes 160: en los mapas grandes, al alejarte, parecía que las tropas dejaban de atacar.
+P.FX_DIST = 420
 local function near(pos, dist)
 	return (workspace.CurrentCamera.CFrame.Position - pos).Magnitude < dist
 end
@@ -1714,7 +1717,7 @@ function Tw.wrap(pos, o)
 	local e = Tw.enemyAt(pos)
 	local root = e and e:FindFirstChild("HumanoidRootPart")
 	local head = e and e:FindFirstChild("Head")
-	if not (root and head and near(root.Position, 170)) then
+	if not (root and head and near(root.Position, P.FX_DIST + 10)) then
 		return
 	end
 	local w = Tw.wraps[e]
@@ -1918,7 +1921,7 @@ local function onHit(model, target, dmg, chain)
 	end
 	local a = Tw.anim(model)
 	local pos = a.base.Position
-	if not near(pos, 160) then
+	if not near(pos, P.FX_DIST) then
 		return
 	end
 	a.goal = a.turns and CFrame.lookAt(pos, Vector3.new(target.X, pos.Y, target.Z)) or a.look
@@ -1937,7 +1940,7 @@ local function onHit(model, target, dmg, chain)
 	}
 	local shown = false
 	c.hit = function()
-		if dmg and not shown and near(target, 170) then
+		if dmg and not shown and near(target, P.FX_DIST + 10) then
 			shown = true
 			fearNumber(target, dmg, color)
 		end

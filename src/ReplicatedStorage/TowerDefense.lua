@@ -21,10 +21,10 @@ TD.SPACING = 3.5 -- distancia mínima entre tropas
 -- PER_PLAYER_HP de valor y PER_PLAYER_COUNT más cazafantasmas normales por oleada. Las primeras oleadas lo aplican poco
 -- a poco (TD.ramp). Cada jugador cobra TODO (oleadas y bajas, como si jugara solo), así que el grupo tiene el doble,
 -- triple... de dinero: con estos valores, contando también el dinero extra de las bajas de más, cada persona tiene una
--- partida un poco más difícil que en solitario: ~x1.15 con 2, ~x1.27 con 3 y ~x1.35 con 4.
--- (Antes era 1.25 y 0.35: con 2 jugadores, ~x1.6 por persona, casi el doble de difícil)
+-- partida algo más difícil que en solitario, y un poco más con cada jugador: ~x1.4 con 2, ~x1.6 con 3 y ~x1.8 con 4.
+-- (Con 1.25 y 0.35 eran ~x1.6 por persona ya con 2 jugadores)
 TD.SOLO_HP = 0.7
-TD.PER_PLAYER_HP = 0.73
+TD.PER_PLAYER_HP = 1.03
 TD.PER_PLAYER_COUNT = 0.3
 TD.DIFFICULTY = {"Normal", "Hard", "Brutal", "Nightmare"} -- nombre según los jugadores (1, 2, 3, 4+)
 TD.WIN_COINS = 600 -- monedas del juego por ganar (además de las de cada oleada)
