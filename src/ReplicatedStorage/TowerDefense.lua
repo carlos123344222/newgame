@@ -18,11 +18,14 @@ TD.MAX_LEVEL = 4
 TD.SELL = 0.6 -- al vender recuperas esto de lo gastado (compra + mejoras)
 TD.SPACING = 3.5 -- distancia mínima entre tropas
 -- Dificultad según los jugadores: en solitario los cazafantasmas aguantan menos (SOLO_HP); cada jugador extra les suma
--- PER_PLAYER_HP de valor y PER_PLAYER_COUNT más cazafantasmas normales por oleada. Como cada jugador también cobra
--- todo, en grupo la partida es más difícil por persona. Las primeras oleadas lo aplican poco a poco (TD.ramp).
+-- PER_PLAYER_HP de valor y PER_PLAYER_COUNT más cazafantasmas normales por oleada. Las primeras oleadas lo aplican poco
+-- a poco (TD.ramp). Cada jugador cobra TODO (oleadas y bajas, como si jugara solo), así que el grupo tiene el doble,
+-- triple... de dinero: con estos valores, contando también el dinero extra de las bajas de más, cada persona tiene una
+-- partida un poco más difícil que en solitario: ~x1.15 con 2, ~x1.27 con 3 y ~x1.35 con 4.
+-- (Antes era 1.25 y 0.35: con 2 jugadores, ~x1.6 por persona, casi el doble de difícil)
 TD.SOLO_HP = 0.7
-TD.PER_PLAYER_HP = 1.25
-TD.PER_PLAYER_COUNT = 0.35
+TD.PER_PLAYER_HP = 0.73
+TD.PER_PLAYER_COUNT = 0.3
 TD.DIFFICULTY = {"Normal", "Hard", "Brutal", "Nightmare"} -- nombre según los jugadores (1, 2, 3, 4+)
 TD.WIN_COINS = 600 -- monedas del juego por ganar (además de las de cada oleada)
 TD.LIMIT = {Basico = 8, Criatura = 6, Trampa = 4, Legendario = 2} -- tropas de cada tipo por jugador (o troop.limit)
@@ -183,9 +186,12 @@ end
 function TD.wavesText(waves)
 	return waves == TD.ENDLESS and "∞" or tostring(waves)
 end
--- vida extra de los cazafantasmas del Modo Infinito a partir de la 20 (x1.045 por oleada)
+-- vida extra de los cazafantasmas del Modo Infinito a partir de la 20 (x1.055 por oleada; antes x1.045 y se llegaba
+-- sin problemas a la 40-50). Con los que salen de más (TD.ENDLESS_MORE): en la 40, ~x1.25 que antes; en la 50, ~x1.4.
+TD.ENDLESS_HP = 1.055
+TD.ENDLESS_MORE = 0.065 -- (antes 0.06)
 function TD.endlessHp(w)
-	return 1.045 ^ math.max(0, w - 20)
+	return TD.ENDLESS_HP ^ math.max(0, w - 20)
 end
 function TD.effWave(w, waves)
 	if waves == TD.ENDLESS then
@@ -549,8 +555,8 @@ function TD.wave(w, players, waves, roster)
 	local last = not endless and w >= waves
 	w = TD.effWave(w, waves)
 	local k = TD.crowd(w, players)
-	-- Modo Infinito: desde la 20, cada oleada un 6% más de cazafantasmas (los jefes, uno)
-	local more = endless and 1 + 0.06 * math.max(0, w - 20) or 1
+	-- Modo Infinito: desde la 20, cada oleada un 6.5% más de cazafantasmas (los jefes, uno)
+	local more = endless and 1 + TD.ENDLESS_MORE * math.max(0, w - 20) or 1
 	local function add(kind, n, gap)
 		if CROWD[kind] then
 			n, gap = math.floor(n * k * more + 0.5), gap / (k * more)
