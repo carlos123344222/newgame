@@ -1561,9 +1561,18 @@ function actions.Place(plr, t, x, z, r)
 	if not ok then
 		return Remote:FireClient(plr, "Info", why or "You can't place it there")
 	end
+	-- Se puede colocar aunque haya visitantes dentro (los bots recalculan su ruta: h.routeVer), pero no encima de uno,
+	-- para no dejarlo atrapado dentro del susto
+	local def = Config.Scares[t]
+	local reach = math.max(def.size.X, def.size.Y) / 2 + 1.5
 	for _, v in visits do
-		if v.house == h and v.player then
-			return Remote:FireClient(plr, "Info", "Wait for the visitor to leave")
+		local model = v.house == h and (v.player and v.player.Character or v.bot)
+		local root = model and model:FindFirstChild("HumanoidRootPart")
+		if root then
+			local vx, vz = depthOf(h, root.Position)
+			if math.abs(vx - x) < reach and math.abs(vz - z) < reach then
+				return Remote:FireClient(plr, "Info", "A visitor is standing there: try another spot")
+			end
 		end
 	end
 	st.inv[t] -= 1
