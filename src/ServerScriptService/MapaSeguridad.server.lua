@@ -15,6 +15,14 @@ local function inside(p)
 		or (x >= 171 and x <= 355 and z <= 102)
 end
 
+-- Paredes invisibles de encima de las vallas entre casas (workspace.Mapa.Calle.Cierres.Tapas): se quitan para que se
+-- pueda saltar la valla y pasar entre las casas. (Las vallas que se ven, los WallFence, se quedan.)
+local cierres = workspace:FindFirstChild("Mapa") and workspace.Mapa:FindFirstChild("Calle") and workspace.Mapa.Calle:FindFirstChild("Cierres")
+local tapas = cierres and cierres:FindFirstChild("Tapas")
+if tapas then
+	tapas:Destroy()
+end
+
 while true do
 	task.wait(0.5)
 	for _, plr in Players:GetPlayers() do

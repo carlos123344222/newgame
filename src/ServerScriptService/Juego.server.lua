@@ -556,7 +556,7 @@ end
 local function syncCounters(plr, st)
 	local c = counters(st)
 	plr:SetAttribute("M_Scared", c.mScared)
-	plr:SetAttribute("M_XP", c.mXP)
+	plr:SetAttribute("M_XP", plr:GetAttribute("PXP") or 0) -- (tablero Most Experience: experiencia total)
 	plr:SetAttribute("M_Likes", c.mLikes)
 	plr:SetAttribute("M_Endless", c.mEndless)
 	if st.house then
@@ -1133,8 +1133,9 @@ local function spawnBot(h)
 	-- los raros (y los de otra materia) van despacio: da tiempo a volver a casa a verlos
 	local pace = Config.visitorSpeed(rarity, variant)
 	hum.WalkSpeed = math.random(9, 12) * (vdef.speed or 1) * pace
-	-- cuanto más nivel tiene el dueño, menos se asustan sus visitantes, pero más monedas sueltan
+	-- cuanto más nivel tiene el dueño (y mejor es su casa), menos se asustan sus visitantes, pero más monedas sueltan
 	local ownerLv = Config.playerLevel(h.owner)
+	local homeFear, homeCoins = Config.houseFear(h.owner), Config.houseCoins(h.owner)
 	bot:PivotTo(h.cf * CFrame.new(math.random(-1, 1), 3 - Config.FLOOR_Y, 21))
 	bot.Parent = h.model
 	setGroup(bot, "Bots") -- atraviesan el portal (los jugadores no: lo cruzan con la animación)
@@ -1143,9 +1144,9 @@ local function spawnBot(h)
 	h.bot = bot
 	local v = {
 		key = bot, bot = bot, hum = hum, root = bot.HumanoidRootPart, house = h, bar = bar, speed = hum.WalkSpeed,
-		fear = 0, calmAt = 0, courage = (0.75 + math.random() * 0.6) * rarity.courage * (vdef.courage or 1) * Config.levelFear(ownerLv), combo = 0, lastScare = -math.huge,
+		fear = 0, calmAt = 0, courage = (0.75 + math.random() * 0.6) * rarity.courage * (vdef.courage or 1) * Config.levelFear(ownerLv) * homeFear, combo = 0, lastScare = -math.huge,
 		voice = (0.9 + math.random() * 0.35) / (vdef.scale or 1), -- cada visitante grita con su propio tono
-		mult = (vdef.mult or 1) * Config.levelCoins(ownerLv), vdef = vdef, variant = variant and variant.id,
+		mult = (vdef.mult or 1) * Config.levelCoins(ownerLv) * homeCoins, vdef = vdef, variant = variant and variant.id,
 	}
 	visits[bot] = v
 	task.spawn(function()
@@ -2285,27 +2286,64 @@ end
 -- Fusión (Caldero de Hexa): funde copias repetidas de un susto de la mochila y sube su estrella. Vale para todos los de
 -- ese tipo, también los colocados. Hay que estar junto al caldero.
 local FUSE_REACH = 30
+-- Fusionar: se funden STAR_COST copias y te queda una, la fusionada, con la estrella nueva (antes se fundían todas y,
+-- si no tenías más, te quedabas sin el susto). Cuentan las de la mochila y las colocadas en tu casa: se gastan primero
+-- las de la mochila y, si faltan, se recogen de la casa (las que quedan colocadas ya brillan con la estrella).
+local function fuseCopies(st, t)
+	local placed = {}
+	if st.house then
+		for id, s in st.house.scares do
+			if s.type == t then
+				table.insert(placed, {id = id, s = s})
+			end
+		end
+	end
+	return (st.inv[t] or 0) + #placed, placed
+end
 function actions.Fuse(plr, t)
 	local st = state[plr]
 	local def = typeof(t) == "string" and Config.Scares[t]
 	if not st or not def or def.skin then
 		return
 	end
+	if st.frozen then
+		return Remote:FireClient(plr, "Info", "You're travelling: try again in a moment")
+	end
 	local station = workspace.Mapa:FindFirstChild("Tiendas") and workspace.Mapa.Tiendas:FindFirstChild("Fusion")
 	local root = plr.Character and plr.Character:FindFirstChild("HumanoidRootPart")
 	if not (station and root and (root.Position - station:GetPivot().Position).Magnitude < FUSE_REACH) then
-		return
+		return Remote:FireClient(plr, "Info", "Get closer to Hexa's Cauldron to fuse")
 	end
 	local star = Config.starOf(plr, t)
 	if star >= Config.STAR_MAX then
 		return Remote:FireClient(plr, "Info", "Already at max stars!")
 	end
 	local cost = Config.STAR_COST[star + 1]
-	if (st.inv[t] or 0) < cost then
-		return Remote:FireClient(plr, "Info", ("You need %d copies in your bag to fuse"):format(cost))
+	local total, placed = fuseCopies(st, t)
+	if total < cost then
+		return Remote:FireClient(plr, "Info", ("You need %d copies to fuse (you have %d)"):format(cost, total))
 	end
-	st.inv[t] -= cost
+	-- se gastan cost - 1 copias (la que queda es la fusionada): primero de la mochila, luego de la casa
+	local use = cost - 1
+	local fromBag = math.min(st.inv[t] or 0, use)
+	local fromHouse = {}
+	for _, p in placed do
+		if #fromHouse >= use - fromBag then
+			break
+		end
+		if not p.s.busy then
+			table.insert(fromHouse, p)
+		end
+	end
+	if fromBag + #fromHouse < use then
+		return Remote:FireClient(plr, "Info", "Your scares are busy scaring someone: wait a moment")
+	end
+	st.inv[t] = (st.inv[t] or 0) - fromBag
 	plr:SetAttribute("Inv_" .. t, st.inv[t])
+	for _, p in fromHouse do
+		st.house.scares[p.id] = nil
+		p.s.model:Destroy()
+	end
 	star += 1
 	plr:SetAttribute("Star_" .. t, star)
 	Misiones.add(plr, "fuse", 1)
@@ -2317,6 +2355,150 @@ function actions.Fuse(plr, t)
 	if star == Config.STAR_MAX and Config.isJackpot(t) then
 		Remote:FireAllClients("Announce", plr.DisplayName, t, "fuse")
 	end
+	task.spawn(save, plr) -- (se guarda ya: una fusión no se pierde aunque el servidor se cierre)
+end
+
+---------- Perfil de otro jugador (PerfilJugador) ----------
+-- Botón "Visit house" del panel: te lleva delante de la casa de ese jugador
+function actions.VisitPlayer(plr, userId)
+	local target = typeof(userId) == "number" and Players:GetPlayerByUserId(userId)
+	local tst = target and target ~= plr and state[target]
+	if not (tst and tst.house and plr.Character) or plr:GetAttribute("Mode") or os.clock() < (travelAt[plr] or 0) then
+		return
+	end
+	travelAt[plr] = os.clock() + 1
+	local root = plr.Character:FindFirstChild("HumanoidRootPart")
+	if root then
+		poofAt(root.Position)
+	end
+	local to = frontOf(tst.house)
+	plr.Character:PivotTo(to)
+	poofAt(to.Position)
+end
+
+---------- Panel de administrador (AdminPanel; solo Config.isAdmin) ----------
+-- El cliente manda Remote:FireServer("Admin", comando, userId del objetivo, valor, valor2). Aquí se vuelve a comprobar
+-- quién lo pide: un exploit puede disparar el remote, pero no pasar de esta comprobación.
+local TextService = game:GetService("TextService")
+local function adminTell(plr, text)
+	Remote:FireClient(plr, "Notice", text)
+end
+local function charOf(p)
+	local root = p and p.Character and p.Character:FindFirstChild("HumanoidRootPart")
+	return root and p.Character, root
+end
+local adminCmds = {}
+function adminCmds.BloodStart(plr)
+	workspace:SetAttribute("BloodOff", nil)
+	workspace:SetAttribute("BloodForce", workspace:GetServerTimeNow() + Config.BLOOD_LENGTH)
+	return "Blood Night started (" .. Config.BLOOD_LENGTH .. " s)"
+end
+function adminCmds.BloodStop(plr)
+	workspace:SetAttribute("BloodForce", nil)
+	local on, at = Config.bloodNight(workspace:GetServerTimeNow())
+	if on then
+		workspace:SetAttribute("BloodOff", at) -- (la del reloj que estaba en marcha también se corta)
+	end
+	return "Blood Night stopped"
+end
+function adminCmds.Coins(plr, target, n)
+	local money = target.leaderstats.Coins
+	money.Value = math.max(0, money.Value + n)
+	return ("%+d coins to %s (now %d)"):format(n, target.Name, money.Value)
+end
+function adminCmds.Gems(plr, target, n)
+	target:SetAttribute("Gems", math.max(0, (target:GetAttribute("Gems") or 0) + n))
+	return ("%+d gems to %s"):format(n, target.Name)
+end
+function adminCmds.XP(plr, target, n)
+	target:SetAttribute("PXP", math.max(0, (target:GetAttribute("PXP") or 0) + n))
+	return ("%+d XP to %s (level %d)"):format(n, target.Name, Config.playerLevel(target))
+end
+function adminCmds.Level(plr, target, n)
+	local lv = math.clamp(math.floor(n), 1, Config.PLAYER_MAX_LEVEL)
+	target:SetAttribute("PXP", Config.pxpTotal(lv))
+	return ("%s is now level %d"):format(target.Name, lv)
+end
+function adminCmds.Scare(plr, target, t, n)
+	if typeof(t) ~= "string" or not Config.Scares[t] then
+		return nil, "Unknown scare"
+	end
+	n = math.clamp(math.floor(tonumber(n) or 1), 1, 50)
+	for _ = 1, n do
+		give(target, t)
+	end
+	adminTell(target, ("An admin gave you %d× %s!"):format(n, Config.Scares[t].name))
+	return ("%d× %s to %s"):format(n, Config.Scares[t].name, target.Name)
+end
+function adminCmds.Luck(plr, target, n)
+	if not table.find(Config.LUCK_BOOSTS, n) then
+		return nil, "Luck must be 1, 10 or 100"
+	end
+	target:SetAttribute("LuckBoost", n)
+	return ("Luck x%d for %s"):format(n, target.Name)
+end
+function adminCmds.TpTo(plr, target)
+	local me = charOf(plr)
+	local _, root = charOf(target)
+	if not (me and root) or plr:GetAttribute("Mode") then
+		return nil, "Can't teleport now"
+	end
+	me:PivotTo(root.CFrame * CFrame.new(0, 0, 4))
+	return "Teleported to " .. target.Name
+end
+function adminCmds.Bring(plr, target)
+	local _, root = charOf(plr)
+	local them = charOf(target)
+	if not (root and them) or target:GetAttribute("Mode") then
+		return nil, target.Name .. " can't be moved now (inside a house?)"
+	end
+	them:PivotTo(root.CFrame * CFrame.new(0, 0, -4))
+	return "Brought " .. target.Name
+end
+function adminCmds.Kick(plr, target)
+	if Config.isAdmin(target) then
+		return nil, "You can't kick an admin"
+	end
+	target:Kick("You were kicked by an admin.")
+	return "Kicked " .. target.Name
+end
+function adminCmds.Announce(plr, _, text)
+	if typeof(text) ~= "string" or #text == 0 or #text > 200 then
+		return nil, "Write a message (max 200 letters)"
+	end
+	-- (los mensajes que ven todos tienen que pasar el filtro de Roblox)
+	local ok, filtered = pcall(function()
+		return TextService:FilterStringAsync(text, plr.UserId, Enum.TextFilterContext.PublicChat):GetNonChatStringForBroadcastAsync()
+	end)
+	if not ok then
+		return nil, "The text filter failed, try again"
+	end
+	Remote:FireAllClients("AdminAnnounce", plr.DisplayName, filtered)
+	return "Announcement sent"
+end
+-- los que no necesitan un jugador objetivo
+local NO_TARGET = {BloodStart = true, BloodStop = true, Announce = true}
+function actions.Admin(plr, cmd, userId, a, b)
+	local f = typeof(cmd) == "string" and adminCmds[cmd]
+	if not (Config.isAdmin(plr) and f) then
+		return
+	end
+	local target
+	if not NO_TARGET[cmd] then
+		target = typeof(userId) == "number" and Players:GetPlayerByUserId(userId)
+		if not (target and state[target]) then
+			return adminTell(plr, "That player isn't in the server")
+		end
+		if cmd ~= "Scare" and (typeof(a) ~= "number" or a ~= a or math.abs(a) > 1e9) and cmd ~= "TpTo" and cmd ~= "Bring" and cmd ~= "Kick" then
+			return adminTell(plr, "Write a valid number")
+		end
+	end
+	local ok, msg, err = pcall(f, plr, target, a, b)
+	if not ok then
+		warn("Admin " .. cmd .. ": " .. tostring(msg))
+		return adminTell(plr, "Error: " .. tostring(msg))
+	end
+	adminTell(plr, msg or err or "Done")
 end
 
 Remote.OnServerEvent:Connect(function(plr, action, ...)
@@ -2449,7 +2631,8 @@ local RANK_FIELDS = {Scared = "mScared", XP = "mXP", Likes = "mLikes", Endless =
 local function writeRanks(plr, st)
 	local c = counters(st)
 	for kind, field in RANK_FIELDS do
-		local v = math.floor(c[field] or 0)
+		-- (Most Experience: la experiencia total, la que da el nivel, para que más experiencia sea siempre más nivel)
+		local v = math.floor(kind == "XP" and (plr:GetAttribute("PXP") or 0) or c[field] or 0)
 		local k = c.month .. kind
 		if v > 0 and st.sent[k] ~= v and pcall(function()
 			rankStore(kind, c.month):SetAsync("u" .. plr.UserId, v)
@@ -2644,6 +2827,14 @@ saveFn.OnInvoke = function(plr, freeze)
 		bankCoins(plr)
 		save(plr, true)
 		st.frozen = true
+		-- si el viaje se cuelga sin avisar y el jugador sigue aquí, se descongela: si no, nada de lo que hiciera
+		-- después (fusiones, ruleta, monedas) se guardaría
+		task.delay(75, function()
+			if state[plr] == st and st.frozen and plr.Parent then
+				st.frozen = nil
+				save(plr)
+			end
+		end)
 	end
 end
 saveFn.Parent = SSS
@@ -2864,6 +3055,8 @@ local function onPlayerAdded(plr)
 		local v = plr:GetAttribute("PXP") or 0
 		if v > lastPXP then
 			count(plr, "mXP", v - lastPXP)
+		else
+			syncCounters(plr, st) -- (también si baja: el tablero enseña la experiencia total)
 		end
 		lastPXP = v
 	end)

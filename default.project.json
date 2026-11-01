@@ -135,6 +135,12 @@
         },
         "FusionUI": {
           "$path": "src/StarterPlayerScripts/FusionUI.lua"
+        },
+        "AdminPanel": {
+          "$path": "src/StarterPlayerScripts/AdminPanel.client.lua"
+        },
+        "PerfilJugador": {
+          "$path": "src/StarterPlayerScripts/PerfilJugador.client.lua"
         }
       },
       "StarterCharacterScripts": {

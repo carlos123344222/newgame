@@ -251,6 +251,13 @@ end
 -- Multiplica el peso de las rarezas, más cuanto más raras (el mítico, por todo el boost; la común, nada), y la
 -- probabilidad de las variantes de material.
 Config.LUCK_ADMINS = {[1718637537] = true} -- lebrowsent
+-- Administradores (panel de admin y comandos): por UserId y, si aún no sabemos su UserId, por nombre de usuario
+-- (en minúsculas). Lo más seguro es el UserId: el nombre de usuario se puede cambiar.
+Config.ADMINS = {[1718637537] = true} -- lebrowsent
+Config.ADMIN_NAMES = {unomasunoasetres = true}
+function Config.isAdmin(plr)
+	return plr ~= nil and (Config.ADMINS[plr.UserId] == true or Config.ADMIN_NAMES[string.lower(plr.Name)] == true)
+end
 Config.LUCK_BOOSTS = {1, 10, 100}
 -- Siempre al nivel máximo (solo estos UserId): Juego les sube la experiencia al entrar
 Config.MAX_LEVEL_USERS = {} -- (vacío: lebrowsent empieza desde cero, 2026-10-29)
@@ -865,15 +872,17 @@ end
 -- Las casas no crecen: se compra otra casa (más grande) y sustituye a la tuya en la parcela. Las que ya tienes se
 -- pueden volver a poner gratis. template: modelo en ServerStorage. rooms: salas de dentro (límite de sustos = rooms ×
 -- SCARES_PER_ROOM). La primera es la que tiene todo el mundo al empezar.
+-- fear: cuanto mejor la casa, más valientes llegan los visitantes (el miedo que les das × fear: 0.7 = un 30% menos).
+-- coins: y para compensar, sueltan más monedas (× coins). Sin ellos, 1.
 Config.Houses = {
-	{id = "Cottage", name = "Haunted Cottage", template = "CasaPrincipal", rooms = 1, price = 0,
+	{id = "Cottage", name = "Haunted Cottage", template = "CasaPrincipal", rooms = 1, price = 0, fear = 1, coins = 1,
 		desc = "Your first haunted house. One room, room for " .. Config.SCARES_PER_ROOM .. " scares."},
-	{id = "Long", name = "Long Haunted House", template = "CasaLarga", rooms = 2, price = 6000,
+	{id = "Long", name = "Long Haunted House", template = "CasaLarga", rooms = 2, price = 8000, fear = 0.85, coins = 1.1,
 		desc = "A long, creaky house with two rooms: room for " .. 2 * Config.SCARES_PER_ROOM .. " scares."},
-	{id = "Manor", name = "Haunted Manor", template = "CasaMansion", rooms = 3, price = 25000,
+	{id = "Manor", name = "Haunted Manor", template = "CasaMansion", rooms = 3, price = 35000, fear = 0.7, coins = 1.2,
 		desc = "A long manor with a haunted belfry on the roof: three rooms, room for " .. 3 * Config.SCARES_PER_ROOM .. " scares."},
 	-- más ancha y alta por dentro (width/height) y con más espacios para sustos (spaces) que las demás
-	{id = "Grand", name = "Grand Haunted Manor", template = "CasaGran", rooms = 3, price = 75000, width = 36, height = 15, spaces = 20,
+	{id = "Grand", name = "Grand Haunted Manor", template = "CasaGran", rooms = 3, price = 100000, fear = 0.55, coins = 1.3, width = 36, height = 15, spaces = 20,
 		desc = "A wide, tall Victorian manor with a corner tower, glowing dormers and a belfry: three big rooms, room for 20 scares."},
 }
 -- Medidas de dentro de una casa (según su plantilla): ancho, alto y espacios para sustos
@@ -899,6 +908,15 @@ function Config.house(id)
 		end
 	end
 	return nil
+end
+-- Lo valientes que llegan los visitantes a la casa de ese jugador (según en cuál vive) y cuántas monedas más sueltan
+function Config.houseFear(plr)
+	local def = plr and Config.house(plr:GetAttribute("Home"))
+	return def and def.fear or 1
+end
+function Config.houseCoins(plr)
+	local def = plr and Config.house(plr:GetAttribute("Home"))
+	return def and def.coins or 1
 end
 
 ---------- Habitaciones ----------
@@ -1284,9 +1302,15 @@ Config.BLOOD_LUCK = 6 -- multiplica la suerte (los míticos x6; los menos raros,
 Config.BLOOD_VARIANT = 3 -- y la probabilidad de llegar hecho de otra materia
 Config.BLOOD_COINS = 1.5
 -- ¿Hay Noche de Sangre en now (GetServerTimeNow)? Devuelve si está activa y cuándo acaba (o cuándo empieza la siguiente)
+-- Un admin puede empezarla o cortarla (panel de admin): atributos BloodForce / BloodOff de Workspace (hora en que acaba)
 function Config.bloodNight(now)
+	local force = workspace:GetAttribute("BloodForce")
+	if typeof(force) == "number" and now < force then
+		return true, force
+	end
 	local t = (now - Config.BLOOD_OFFSET) % Config.BLOOD_EVERY
-	if t < Config.BLOOD_LENGTH then
+	local off = workspace:GetAttribute("BloodOff")
+	if t < Config.BLOOD_LENGTH and not (typeof(off) == "number" and now < off) then
 		return true, now - t + Config.BLOOD_LENGTH
 	end
 	return false, now - t + Config.BLOOD_EVERY
